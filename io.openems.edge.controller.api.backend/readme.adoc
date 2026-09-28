@@ -72,6 +72,7 @@ Implements the main Backend API controller service that maintains WebSocket conn
 | `apiTimeout` | Timeout for Backend-set channel updates (seconds) | Integer | `60`
 | `persistencePriority` | Minimum persistence priority for regular channel updates | Enum | `HIGH`
 | `aggregationPriority` | Minimum persistence priority for aggregated values | Enum | `LOW`
+| `aggregationInterval` | Interval over which values are aggregated before transmission | Enum | `FIVE_MINUTES`
 | `resendPriority` | Minimum persistence priority for historic resend | Enum | `HIGH`
 | `debugMode` | Enable verbose debug logging | Boolean | `false`
 |===

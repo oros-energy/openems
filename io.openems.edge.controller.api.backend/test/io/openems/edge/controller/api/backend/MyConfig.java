@@ -18,6 +18,7 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 		private int apiTimeout;
 		private PersistencePriority persistencePriority;
 		private PersistencePriority aggregationPriority;
+		private AggregationInterval aggregationInterval = AggregationInterval.FIVE_MINUTES;
 		private PersistencePriority resendPriority;
 		private boolean debugMode;
 
@@ -66,6 +67,11 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 
 		public Builder setAggregationPriority(PersistencePriority aggregationPriority) {
 			this.aggregationPriority = aggregationPriority;
+			return this;
+		}
+
+		public Builder setAggregationInterval(AggregationInterval aggregationInterval) {
+			this.aggregationInterval = aggregationInterval;
 			return this;
 		}
 
@@ -138,6 +144,11 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 	@Override
 	public PersistencePriority aggregationPriority() {
 		return this.builder.aggregationPriority;
+	}
+
+	@Override
+	public AggregationInterval aggregationInterval() {
+		return this.builder.aggregationInterval;
 	}
 
 	@Override

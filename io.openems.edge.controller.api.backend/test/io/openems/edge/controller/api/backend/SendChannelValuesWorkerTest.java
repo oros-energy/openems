@@ -1,9 +1,13 @@
 package io.openems.edge.controller.api.backend;
 
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
 import static org.junit.Assert.assertTrue;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
+import java.time.ZoneOffset;
+import java.time.ZonedDateTime;
 
 import org.junit.Test;
 
@@ -117,6 +121,44 @@ public class SendChannelValuesWorkerTest {
 
 			return DummyEnum.VALUE_1;
 		});
+	}
+
+	@Test
+	public void testGetAggregationWindowEnd() {
+		final var now = ZonedDateTime.of(2026, 9, 28, 10, 3, 30, 0, ZoneOffset.UTC);
+		assertEquals(ZonedDateTime.of(2026, 9, 28, 10, 3, 0, 0, ZoneOffset.UTC), //
+				SendChannelValuesWorker.getAggregationWindowEnd(now, AggregationInterval.ONE_MINUTE.getDuration()));
+		assertEquals(ZonedDateTime.of(2026, 9, 28, 10, 0, 0, 0, ZoneOffset.UTC), //
+				SendChannelValuesWorker.getAggregationWindowEnd(now, AggregationInterval.FIVE_MINUTES.getDuration()));
+	}
+
+	@Test
+	public void testEveryAggregationIntervalFitsIntoChannelHistory() {
+		final var now = ZonedDateTime.of(2026, 9, 28, 10, 3, 30, 0, ZoneOffset.UTC);
+		final var history = Duration.from(Channel.MAX_AGE_OF_PAST_VALUES);
+		for (var interval : AggregationInterval.values()) {
+			final var duration = interval.getDuration();
+			assertTrue(duration.compareTo(history) < 0);
+
+			final var end = SendChannelValuesWorker.getAggregationWindowEnd(now, duration);
+			assertFalse(end.isAfter(now));
+			assertTrue(Duration.between(end, now).compareTo(duration) < 0);
+		}
+	}
+
+	@Test
+	public void testGetAggregatedDataSendDelay() {
+		final var fiveMinutes = AggregationInterval.FIVE_MINUTES.getDuration();
+		final var oneMinute = AggregationInterval.ONE_MINUTE.getDuration();
+		final var highestFactor = Math.nextDown(1.0);
+
+		assertEquals(Duration.ZERO, SendChannelValuesWorker.getAggregatedDataSendDelay(fiveMinutes, 0));
+		assertEquals(Duration.ofSeconds(135), SendChannelValuesWorker.getAggregatedDataSendDelay(fiveMinutes, 0.5));
+		assertEquals(Duration.ofSeconds(27), SendChannelValuesWorker.getAggregatedDataSendDelay(oneMinute, 0.5));
+		assertTrue(SendChannelValuesWorker.getAggregatedDataSendDelay(fiveMinutes, highestFactor)
+				.compareTo(Duration.ofSeconds(270)) < 0);
+		assertTrue(SendChannelValuesWorker.getAggregatedDataSendDelay(oneMinute, highestFactor)
+				.compareTo(Duration.ofSeconds(54)) < 0);
 	}
 
 	private static void testAggregateEnumChannel(int numberOfValues,

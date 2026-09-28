@@ -56,7 +56,6 @@ import io.openems.edge.common.type.TypeUtils;
  */
 public class SendChannelValuesWorker {
 
-	private static final int AGGREGATION_MINUTES = 5;
 	private static final int SEND_VALUES_OF_ALL_CHANNELS_AFTER_SECONDS = 300; /* 5 minutes */
 
 	private final Logger log = LoggerFactory.getLogger(SendChannelValuesWorker.class);
@@ -71,7 +70,7 @@ public class SendChannelValuesWorker {
 	private final ScheduledExecutorService aggregatedExecutor = Executors.newScheduledThreadPool(1,
 			new ThreadFactoryBuilder()
 					.setNameFormat(ControllerApiBackendImpl.COMPONENT_NAME + ":SendAggregatedWorker-%d").build());
-	private final int randomWaitSeconds = new Random().nextInt((int) (AGGREGATION_MINUTES * 60 * 0.9));
+	private final double randomDelayFactor = new Random().nextDouble();
 
 	/**
 	 * If true: next 'send' sends all channel values.
@@ -118,19 +117,21 @@ public class SendChannelValuesWorker {
 	 */
 	public synchronized void collectData() {
 		final var now = ZonedDateTime.now(this.parent.componentManager.getClock());
+		final var interval = this.parent.config.aggregationInterval().getDuration();
 
 		// Update the values of all channels
 		final var enabledComponents = this.parent.componentManager.getEnabledComponents();
 		final var allValues = this.collectData(enabledComponents);
-		final var aggregatedValues = this.collectAggregatedData(now, enabledComponents);
+		final var aggregatedValues = this.collectAggregatedData(now, interval, enabledComponents);
 
 		// Add to send Queue
 		this.executor.execute(new SendTask(this, now.toInstant(), allValues));
 		if (aggregatedValues != null && !aggregatedValues.isEmpty()) {
+			final var delay = getAggregatedDataSendDelay(interval, this.randomDelayFactor);
 			aggregatedValues.rowMap().forEach((timestamp, data) -> {
 				this.aggregatedExecutor.schedule(
-						new SendAggregatedDataTask(this, Instant.ofEpochMilli(timestamp), data), this.randomWaitSeconds,
-						TimeUnit.SECONDS);
+						new SendAggregatedDataTask(this, Instant.ofEpochMilli(timestamp), data), delay.toMillis(),
+						TimeUnit.MILLISECONDS);
 			});
 		}
 	}
@@ -168,10 +169,10 @@ public class SendChannelValuesWorker {
 		}
 	}
 
-	private TreeBasedTable<Long, String, JsonElement> collectAggregatedData(ZonedDateTime now,
+	private TreeBasedTable<Long, String, JsonElement> collectAggregatedData(ZonedDateTime now, Duration interval,
 			List<OpenemsComponent> enabledComponents) {
-		final var endTime = now.truncatedTo(DurationUnit.ofMinutes(AGGREGATION_MINUTES));
-		final var startTime = endTime.minusMinutes(AGGREGATION_MINUTES);
+		final var endTime = getAggregationWindowEnd(now, interval);
+		final var startTime = endTime.minus(interval);
 
 		final var timestamp = startTime.toInstant();
 		if (this.lastSendAggregatedDataTimestamp == null) {
@@ -198,7 +199,7 @@ public class SendChannelValuesWorker {
 					try {
 						// This is the highest timestamp before `startTime`. If existing it is used for
 						// the tailMap to make sure we get a Value even for Channels where the value has
-						// not changed within the last 5 minutes.
+						// not changed within the interval.
 						var channelStartTime = Optional
 								.ofNullable(channel.getPastValues().floorKey(startTime.toLocalDateTime()))
 								.orElse(startTime.toLocalDateTime());
@@ -228,6 +229,31 @@ public class SendChannelValuesWorker {
 					}
 				});
 		return table;
+	}
+
+	/**
+	 * Gets the end of the latest completed aggregation window, which is also the
+	 * start of the current one.
+	 *
+	 * @param now      the current time
+	 * @param interval the aggregation interval
+	 * @return the end of the window
+	 */
+	protected static ZonedDateTime getAggregationWindowEnd(ZonedDateTime now, Duration interval) {
+		return now.truncatedTo(DurationUnit.of(interval));
+	}
+
+	/**
+	 * Gets the delay before the aggregated values of a window are sent. The delay
+	 * is a random share of up to 90 % of the interval, which spreads the load of
+	 * many Edges on the Backend and keeps the delay shorter than the interval.
+	 *
+	 * @param interval the aggregation interval
+	 * @param factor   a random factor from 0 inclusive to 1 exclusive
+	 * @return the delay
+	 */
+	protected static Duration getAggregatedDataSendDelay(Duration interval, double factor) {
+		return Duration.ofMillis((long) (interval.toMillis() * 0.9 * factor));
 	}
 
 	// TODO aggregation should be moved to doc

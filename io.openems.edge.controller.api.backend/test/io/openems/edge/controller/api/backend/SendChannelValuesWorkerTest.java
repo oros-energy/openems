@@ -12,7 +12,9 @@ import java.time.ZonedDateTime;
 import org.junit.Test;
 
 import com.google.common.collect.Lists;
+import com.google.gson.JsonElement;
 
+import io.openems.common.channel.Aggregation;
 import io.openems.common.function.ThrowingFunction;
 import io.openems.common.types.OpenemsType;
 import io.openems.common.types.OptionsEnum;
@@ -161,6 +163,88 @@ public class SendChannelValuesWorkerTest {
 				.compareTo(Duration.ofSeconds(54)) < 0);
 	}
 
+	@Test
+	public void testAggregateWithMax() {
+		assertEquals(7, SendChannelValuesWorker.aggregate(Aggregation.MAX, OpenemsType.LONG, //
+				Lists.newArrayList(2, 7, 3)).getAsLong());
+		assertEquals(7.5, SendChannelValuesWorker.aggregate(Aggregation.MAX, OpenemsType.DOUBLE, //
+				Lists.newArrayList(2.5, 7.5, 3.5)).getAsDouble(), 0);
+		assertEquals(1, SendChannelValuesWorker.aggregate(Aggregation.MAX, OpenemsType.BOOLEAN, //
+				Lists.newArrayList(false, true, false)).getAsLong());
+	}
+
+	@Test
+	public void testAggregateWithMin() {
+		assertEquals(2, SendChannelValuesWorker.aggregate(Aggregation.MIN, OpenemsType.LONG, //
+				Lists.newArrayList(2, 7, 3)).getAsLong());
+		assertEquals(2.5, SendChannelValuesWorker.aggregate(Aggregation.MIN, OpenemsType.DOUBLE, //
+				Lists.newArrayList(2.5, 7.5, 3.5)).getAsDouble(), 0);
+		assertEquals(0, SendChannelValuesWorker.aggregate(Aggregation.MIN, OpenemsType.BOOLEAN, //
+				Lists.newArrayList(true, false, true)).getAsLong());
+	}
+
+	@Test
+	public void testAggregateWithLatest() {
+		assertEquals(3, SendChannelValuesWorker.aggregate(Aggregation.LATEST, OpenemsType.LONG, //
+				Lists.newArrayList(2, 7, 3)).getAsLong());
+		assertEquals(3.5, SendChannelValuesWorker.aggregate(Aggregation.LATEST, OpenemsType.DOUBLE, //
+				Lists.newArrayList(2.5, 7.5, 3.5)).getAsDouble(), 0);
+		assertEquals("c", SendChannelValuesWorker.aggregate(Aggregation.LATEST, OpenemsType.STRING, //
+				Lists.newArrayList("a", "b", "c")).getAsString());
+	}
+
+	@Test
+	public void testAggregateWithBitwiseOr() {
+		assertEquals(13, SendChannelValuesWorker.aggregate(Aggregation.BITWISE_OR, OpenemsType.LONG, //
+				Lists.newArrayList(1, 4, 8, 4)).getAsLong());
+	}
+
+	@Test
+	public void testAggregateWithoutValues() {
+		for (var aggregation : Aggregation.values()) {
+			assertTrue(SendChannelValuesWorker.aggregate(aggregation, OpenemsType.LONG, //
+					Lists.newArrayList()).isJsonNull());
+		}
+	}
+
+	@Test(expected = IllegalArgumentException.class)
+	public void testAggregateNotApplicableToType() {
+		SendChannelValuesWorker.aggregate(Aggregation.BITWISE_OR, OpenemsType.DOUBLE, //
+				Lists.newArrayList(1.0));
+	}
+
+	@Test
+	public void testAggregateChannelKeepsMostFrequentEnumValueByDefault() throws Exception {
+		final var value = aggregateWrittenValues(DummyComponent.ChannelId.DUMMY_ENUM_CHANNEL, //
+				DummyEnum.VALUE_1, DummyEnum.VALUE_1, DummyEnum.VALUE_1, DummyEnum.VALUE_3);
+		assertEquals(DummyEnum.VALUE_1.getValue(), value.getAsInt());
+	}
+
+	@Test
+	public void testAggregateChannelWithMaxAggregation() throws Exception {
+		final var value = aggregateWrittenValues(DummyComponent.ChannelId.DUMMY_ENUM_MAX_CHANNEL, //
+				DummyEnum.VALUE_1, DummyEnum.VALUE_1, DummyEnum.VALUE_1, DummyEnum.VALUE_3);
+		assertEquals(DummyEnum.VALUE_3.getValue(), value.getAsInt());
+	}
+
+	@Test
+	public void testAggregateChannelWithBitwiseOrAggregation() throws Exception {
+		final var value = aggregateWrittenValues(DummyComponent.ChannelId.DUMMY_ALARM_CHANNEL, 1L, 4L, 0L);
+		assertEquals(5, value.getAsLong());
+	}
+
+	private static JsonElement aggregateWrittenValues(DummyComponent.ChannelId channelId, Object... values)
+			throws InterruptedException {
+		final var component = new DummyComponent("component0");
+		final Channel<?> channel = component.channel(channelId);
+		final var start = LocalDateTime.now();
+		for (var value : values) {
+			writeValue(channel, value);
+		}
+		final var end = LocalDateTime.now().plusSeconds(1);
+		return SendChannelValuesWorker.aggregateChannel(channel, start, end);
+	}
+
 	private static void testAggregateEnumChannel(int numberOfValues,
 			ThrowingFunction<Channel<?>, DummyEnum, Exception> test) throws Exception {
 		final var component = new DummyComponent("component0");
@@ -223,6 +307,8 @@ public class SendChannelValuesWorkerTest {
 			 * Dummy state channels for testing.
 			 */
 			DUMMY_ENUM_CHANNEL(Doc.of(DummyEnum.values())), //
+			DUMMY_ENUM_MAX_CHANNEL(Doc.of(DummyEnum.values()).aggregation(Aggregation.MAX)), //
+			DUMMY_ALARM_CHANNEL(Doc.of(OpenemsType.LONG).aggregation(Aggregation.BITWISE_OR)), //
 			;
 
 			private final Doc doc;

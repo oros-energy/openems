@@ -35,6 +35,7 @@ import com.google.gson.JsonNull;
 import com.google.gson.JsonPrimitive;
 
 import io.openems.common.channel.AccessMode;
+import io.openems.common.channel.Aggregation;
 import io.openems.common.jsonrpc.notification.AggregatedDataNotification;
 import io.openems.common.jsonrpc.notification.TimestampedDataNotification;
 import io.openems.common.timedata.DurationUnit;
@@ -197,28 +198,8 @@ public class SendChannelValuesWorker {
 								.isAtLeast(this.parent.config.aggregationPriority()))
 				.forEach(channel -> {
 					try {
-						// This is the highest timestamp before `startTime`. If existing it is used for
-						// the tailMap to make sure we get a Value even for Channels where the value has
-						// not changed within the interval.
-						var channelStartTime = Optional
-								.ofNullable(channel.getPastValues().floorKey(startTime.toLocalDateTime()))
-								.orElse(startTime.toLocalDateTime());
-
-						var value = channel.getPastValues() //
-								.tailMap(channelStartTime, true) //
-								.entrySet() //
-								.stream() //
-								.filter(e -> e.getKey().isBefore(endTime.toLocalDateTime())) //
-								.filter(e -> e.getValue().isDefined()).map(e -> e.getValue().get()) //
-								.collect(aggregateCollector(channel.channelDoc().getUnit().isCumulated(), //
-										channel.getType()));
-
-						// TODO aggregation should be modifiable in Doc e. g. not every EnumDoc may want
-						// this behaviour
-						if (channel.channelDoc() instanceof EnumDoc) {
-							value = aggregateEnumChannel(channel, channelStartTime, endTime.toLocalDateTime());
-						}
-
+						final var value = aggregateChannel(channel, startTime.toLocalDateTime(),
+								endTime.toLocalDateTime());
 						if (!sendAllChannels && value.isJsonNull()) {
 							return;
 						}
@@ -254,6 +235,44 @@ public class SendChannelValuesWorker {
 	 */
 	protected static Duration getAggregatedDataSendDelay(Duration interval, double factor) {
 		return Duration.ofMillis((long) (interval.toMillis() * 0.9 * factor));
+	}
+
+	/**
+	 * Aggregates the values of a Channel within a time window. Applies the
+	 * {@link Aggregation} of the Channel Doc if one is set, otherwise the default
+	 * aggregation for the type of the Channel.
+	 *
+	 * @param channel   the {@link Channel}
+	 * @param startTime the start of the window
+	 * @param endTime   the end of the window, exclusive
+	 * @return the aggregated value
+	 * @throws IllegalArgumentException if the values do not match the type of the
+	 *                                  Channel
+	 */
+	protected static JsonElement aggregateChannel(Channel<?> channel, LocalDateTime startTime,
+			LocalDateTime endTime) throws IllegalArgumentException {
+		// This is the highest timestamp before `startTime`. If existing it is used for
+		// the tailMap to make sure we get a Value even for Channels where the value has
+		// not changed within the interval.
+		final var channelStartTime = Optional //
+				.ofNullable(channel.getPastValues().floorKey(startTime)) //
+				.orElse(startTime);
+
+		final var doc = channel.channelDoc();
+		final var aggregation = doc.getAggregation();
+		if (aggregation == null && doc instanceof EnumDoc) {
+			return aggregateEnumChannel(channel, channelStartTime, endTime);
+		}
+		final Collector<Object, ?, JsonElement> collector = aggregation == null //
+				? aggregateCollector(doc.getUnit().isCumulated(), channel.getType()) //
+				: aggregateCollector(aggregation, channel.getType());
+		return channel.getPastValues() //
+				.tailMap(channelStartTime, true) //
+				.entrySet() //
+				.stream() //
+				.filter(e -> e.getKey().isBefore(endTime)) //
+				.filter(e -> e.getValue().isDefined()).map(e -> e.getValue().get()) //
+				.collect(collector);
 	}
 
 	// TODO aggregation should be moved to doc
@@ -323,6 +342,20 @@ public class SendChannelValuesWorker {
 		);
 	}
 
+	protected static Collector<Object, ?, JsonElement> aggregateCollector(//
+			final Aggregation aggregation, //
+			final OpenemsType type //
+	) {
+		return Collector.of(ArrayList::new, //
+				(a, b) -> a.add(b), //
+				(a, b) -> {
+					a.addAll(b);
+					return a;
+				}, //
+				t -> aggregate(aggregation, type, t) //
+		);
+	}
+
 	protected static JsonElement aggregate(boolean isCumulated, OpenemsType type, Collection<Object> values)
 			throws IllegalArgumentException {
 		switch (type) {
@@ -365,6 +398,55 @@ public class SendChannelValuesWorker {
 		}
 		}
 		return JsonNull.INSTANCE;
+	}
+
+	/**
+	 * Aggregates values with the given {@link Aggregation}.
+	 *
+	 * @param aggregation the {@link Aggregation}
+	 * @param type        the {@link OpenemsType} of the values
+	 * @param values      the values, oldest first
+	 * @return the aggregated value, or {@link JsonNull} if there are no values
+	 * @throws IllegalArgumentException if the {@link Aggregation} cannot be
+	 *                                  applied to the {@link OpenemsType}
+	 */
+	protected static JsonElement aggregate(Aggregation aggregation, OpenemsType type, List<Object> values)
+			throws IllegalArgumentException {
+		if (!aggregation.isApplicableTo(type)) {
+			throw new IllegalArgumentException(
+					"Aggregation [" + aggregation + "] is not applicable to type [" + type + "]");
+		}
+		if (values.isEmpty()) {
+			return JsonNull.INSTANCE;
+		}
+		final var isFloatingPoint = type == OpenemsType.FLOAT || type == OpenemsType.DOUBLE;
+		return switch (aggregation) {
+		case MAX, MIN -> {
+			if (isFloatingPoint) {
+				final var stream = values.stream() //
+						.mapToDouble(item -> TypeUtils.getAsType(OpenemsType.DOUBLE, item));
+				yield new JsonPrimitive(aggregation == Aggregation.MAX //
+						? stream.max().getAsDouble() //
+						: stream.min().getAsDouble());
+			}
+			final var stream = values.stream() //
+					.mapToLong(item -> TypeUtils.getAsType(OpenemsType.LONG, item));
+			yield new JsonPrimitive(aggregation == Aggregation.MAX //
+					? stream.max().getAsLong() //
+					: stream.min().getAsLong());
+		}
+		case LATEST -> {
+			final var latest = values.get(values.size() - 1);
+			yield switch (type) {
+			case BOOLEAN, SHORT, INTEGER, LONG -> new JsonPrimitive(TypeUtils.<Long>getAsType(OpenemsType.LONG, latest));
+			case FLOAT, DOUBLE -> new JsonPrimitive(TypeUtils.<Double>getAsType(OpenemsType.DOUBLE, latest));
+			case STRING -> new JsonPrimitive(TypeUtils.<String>getAsType(OpenemsType.STRING, latest));
+			};
+		}
+		case BITWISE_OR -> new JsonPrimitive(values.stream() //
+				.mapToLong(item -> TypeUtils.getAsType(OpenemsType.LONG, item)) //
+				.reduce(0L, (a, b) -> a | b));
+		};
 	}
 
 	/*

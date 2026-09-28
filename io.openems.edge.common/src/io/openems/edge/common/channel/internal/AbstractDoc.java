@@ -7,6 +7,7 @@ import java.util.function.Consumer;
 import java.util.function.Function;
 
 import io.openems.common.channel.AccessMode;
+import io.openems.common.channel.Aggregation;
 import io.openems.common.channel.PersistencePriority;
 import io.openems.common.channel.Unit;
 import io.openems.common.exceptions.OpenemsError.OpenemsNamedException;
@@ -138,6 +139,34 @@ public abstract class AbstractDoc<T> implements Doc {
 	@Override
 	public PersistencePriority getRemotePersistencePriority() {
 		return this.remotePersistencePriority;
+	}
+
+	/**
+	 * Aggregation of the values of this Channel within a time window.
+	 */
+	private Aggregation aggregation = null;
+
+	/**
+	 * Sets the {@link Aggregation} of the values within a time window. Defaults to
+	 * null, which applies the default aggregation for the type of the Channel.
+	 *
+	 * @param aggregation the {@link Aggregation}
+	 * @return myself
+	 * @throws IllegalArgumentException if the {@link Aggregation} cannot be
+	 *                                  applied to the type of the Channel
+	 */
+	public AbstractDoc<T> aggregation(Aggregation aggregation) {
+		if (aggregation != null && !aggregation.isApplicableTo(this.getType())) {
+			throw new IllegalArgumentException(
+					"Aggregation [" + aggregation + "] is not applicable to type [" + this.getType() + "]");
+		}
+		this.aggregation = aggregation;
+		return this.self();
+	}
+
+	@Override
+	public Aggregation getAggregation() {
+		return this.aggregation;
 	}
 
 	/*

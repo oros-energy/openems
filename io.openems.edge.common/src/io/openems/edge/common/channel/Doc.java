@@ -1,6 +1,7 @@
 package io.openems.edge.common.channel;
 
 import io.openems.common.channel.AccessMode;
+import io.openems.common.channel.Aggregation;
 import io.openems.common.channel.ChannelCategory;
 import io.openems.common.channel.Level;
 import io.openems.common.channel.PersistencePriority;
@@ -131,6 +132,14 @@ public interface Doc {
 	 * @return the {@link PersistencePriority}
 	 */
 	public PersistencePriority getLocalPersistencePriority();
+
+	/**
+	 * Gets the {@link Aggregation} of the values within a time window. Defaults to
+	 * null, which applies the default aggregation for the type of the Channel.
+	 *
+	 * @return the {@link Aggregation} or null
+	 */
+	public Aggregation getAggregation();
 
 	/**
 	 * Sets the descriptive text. Defaults to an empty string.

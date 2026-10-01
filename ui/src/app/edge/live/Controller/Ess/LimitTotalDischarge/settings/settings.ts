@@ -56,19 +56,19 @@ export class ControllerEssLimitTotalDischargeSettingsComponent extends AbstractF
         AssertionUtils.assertIsDefined(component);
 
         this.setFormControlSafelyWithChannel(
-            this.form,
+            this.form(),
             "minSoc",
             currentData,
             new ChannelAddress(component.id, SharedControllerEssLimitTotalDischarge.PROPERTY_MIN_SOC),
         );
         this.setFormControlSafelyWithChannel(
-            this.form,
+            this.form(),
             "forceChargeSoc",
             currentData,
             new ChannelAddress(component.id, SharedControllerEssLimitTotalDischarge.PROPERTY_FORCE_CHARGE_SOC),
         );
         this.setFormControlSafelyWithChannel(
-            this.form,
+            this.form(),
             "forceChargePower",
             currentData,
             new ChannelAddress(component.id, SharedControllerEssLimitTotalDischarge.PROPERTY_FORCE_CHARGE_POWER),

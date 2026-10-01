@@ -84,8 +84,8 @@ export class ControllerEssLimitTotalDischargeHomeComponent extends AbstractForml
             this.appliedForceChargeSoc = forceChargeSoc;
         }
 
-        this.setFormControlSafelyWithChannel(this.form, "minSoc", currentData, minSocChannel);
-        this.setFormControlSafelyWithChannel(this.form, "forceChargeSoc", currentData, forceChargeSocChannel);
+        this.setFormControlSafelyWithChannel(this.form(), "minSoc", currentData, minSocChannel);
+        this.setFormControlSafelyWithChannel(this.form(), "forceChargeSoc", currentData, forceChargeSocChannel);
     }
 
     /**

@@ -4,7 +4,7 @@ import { NavigationConstants, NavigationTree } from "src/app/shared/components/n
 import { Converter } from "src/app/shared/components/shared/converter";
 import { Name } from "src/app/shared/components/shared/name";
 import type { OeFormlyField, OeFormlyView } from "src/app/shared/components/shared/oe-formly-component";
-import type { RouteService } from "src/app/shared/service/route.service";
+import type { RouteService } from "src/app/shared/service/route/route.service";
 import { ChannelAddress, Utils } from "src/app/shared/shared";
 import type { Edge, EdgeConfig, Service } from "src/app/shared/shared";
 import { Role } from "src/app/shared/type/role";

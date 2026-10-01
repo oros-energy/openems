@@ -213,10 +213,7 @@ export namespace SharedControllerEssLimitTotalDischarge {
             { name: "battery-dead-outline", color: "normal" },
             Name.METER_ALIAS_OR_ID(component),
             "label",
-            [
-                NavigationConstants.CommonNodes.SETTINGS(translate),
-                NavigationConstants.CommonNodes.INFO(translate, { source: component.id }),
-            ],
+            [NavigationConstants.CommonNodes.SETTINGS(translate, component.id)],
             null,
         ).toConstructorParams();
     }

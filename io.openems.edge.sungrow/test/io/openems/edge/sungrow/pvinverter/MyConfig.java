@@ -1,28 +1,22 @@
 package io.openems.edge.sungrow.pvinverter;
 
 import io.openems.common.test.AbstractComponentConfig;
+import io.openems.common.types.MeterType;
 
 @SuppressWarnings("all")
 public class MyConfig extends AbstractComponentConfig implements Config {
 
 	protected static class Builder {
 		private String id;
-		private boolean readOnly;
-		private String modbusId;
+		private String modbusId = null;
 		private int modbusUnitId;
-		private PhaseWiring phaseWiring;
-		private int maxActivePower;
+		private boolean readOnly = true;
 
 		private Builder() {
 		}
 
 		public Builder setId(String id) {
 			this.id = id;
-			return this;
-		}
-
-		public Builder setReadOnly(boolean readOnly) {
-			this.readOnly = readOnly;
 			return this;
 		}
 
@@ -36,13 +30,8 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 			return this;
 		}
 
-		public Builder setPhaseWiring(PhaseWiring phaseWiring) {
-			this.phaseWiring = phaseWiring;
-			return this;
-		}
-
-		public Builder setMaxActivePower(int maxActivePower) {
-			this.maxActivePower = maxActivePower;
+		public Builder setReadOnly(boolean readOnly) {
+			this.readOnly = readOnly;
 			return this;
 		}
 
@@ -53,7 +42,7 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 
 	/**
 	 * Create a Config builder.
-	 *
+	 * 
 	 * @return a {@link Builder}
 	 */
 	public static Builder create() {
@@ -68,11 +57,6 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 	}
 
 	@Override
-	public boolean readOnly() {
-		return this.builder.readOnly;
-	}
-
-	@Override
 	public String modbus_id() {
 		return this.builder.modbusId;
 	}
@@ -83,12 +67,13 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 	}
 
 	@Override
-	public PhaseWiring phaseWiring() {
-		return this.builder.phaseWiring;
+	public boolean readOnly() {
+		return this.builder.readOnly;
 	}
 
 	@Override
-	public int maxActivePower() {
-		return this.builder.maxActivePower;
+	public MeterType type() {
+		return MeterType.PRODUCTION;
 	}
+
 }

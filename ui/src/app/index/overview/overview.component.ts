@@ -1,11 +1,11 @@
-// @ts-strict-ignore
-import { Component, effect, model, OnDestroy, signal, ChangeDetectionStrategy, untracked } from "@angular/core";
-import { FormGroup } from "@angular/forms";
+import { ChangeDetectionStrategy, Component, effect, model, OnDestroy, signal, untracked } from "@angular/core";
 import { ActivatedRoute, Router } from "@angular/router";
 import { InfiniteScrollCustomEvent, Platform, ViewWillEnter } from "@ionic/angular";
 import { TranslateService } from "@ngx-translate/core";
 import { Subject, Subscription } from "rxjs";
+import { NavigationTree } from "src/app/shared/components/navigation/shared";
 import { GetEdgesRequest } from "src/app/shared/jsonrpc/request/getEdgesRequest";
+import { User } from "src/app/shared/jsonrpc/shared";
 import { Pagination } from "src/app/shared/service/pagination";
 import { UserService } from "src/app/shared/service/user.service";
 import { Edge, Service, UserPermission, Utils, Websocket } from "src/app/shared/shared";
@@ -29,7 +29,6 @@ export class OverViewComponent implements ViewWillEnter, OnDestroy {
     /** True, if the logged in user is allowed to install new edges. */
     public loggedInUserCanInstall = model<boolean>(false);
 
-    public form: FormGroup;
     public filteredEdges = model<Edge[]>([]);
 
     protected loading = signal(false);
@@ -79,6 +78,24 @@ export class OverViewComponent implements ViewWillEnter, OnDestroy {
                 // this.filteredEdges.set(await this.loadNextPage());
             }
         });
+    }
+
+    static getNavigationTree(user: User, translate: TranslateService): NavigationTree[] {
+        if (!user?.hasMultipleEdges) {
+            return [];
+        }
+        return [
+            new NavigationTree(
+                "overview",
+                { baseString: "overview" },
+                { name: "apps-outline" },
+                { desktop: translate.instant("MENU.OVERVIEW"), mobile: translate.instant("MENU.SYSTEMS") },
+                "icon",
+                [],
+                null,
+                { customLink: "/overview", hideFavorite: true },
+            ),
+        ];
     }
 
     ionViewWillEnter() {
@@ -135,7 +152,7 @@ export class OverViewComponent implements ViewWillEnter, OnDestroy {
                 return;
             }
 
-            const searchParamsObj = {};
+            const searchParamsObj: Record<string, ChosenFilter["value"]> = {};
             if (this.searchParams && this.searchParams.size > 0) {
                 for (const [key, value] of this.searchParams) {
                     searchParamsObj[key] = value;
@@ -154,7 +171,7 @@ export class OverViewComponent implements ViewWillEnter, OnDestroy {
                     this.limitReached = edges.length < this.limit;
                     const user = this.userService.currentUser();
                     // TODO could be applied before calling getEdges
-                    if (!UserPermission.isUserAllowedToSeeOverview(user) && edges.length > 0) {
+                    if (user != null && !UserPermission.isUserAllowedToSeeOverview(user) && edges.length > 0) {
                         const edge = edges[0];
                         setTimeout(() => {
                             this.router.navigate(["/device", edge.id]);

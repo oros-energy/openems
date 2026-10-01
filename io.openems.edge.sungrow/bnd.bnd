@@ -1,5 +1,5 @@
 Bundle-Name: OpenEMS Edge Sungrow
-Bundle-Vendor: OROS Energy Europe GmbH
+Bundle-Vendor: opernikus GmbH, OpenEMS Association e.V.
 Bundle-License: https://opensource.org/licenses/EPL-2.0
 Bundle-Version: 1.0.0.${tstamp}
 
@@ -8,8 +8,10 @@ Bundle-Version: 1.0.0.${tstamp}
 	io.openems.common,\
 	io.openems.edge.bridge.modbus,\
 	io.openems.edge.common,\
+	io.openems.edge.ess.api,\
 	io.openems.edge.meter.api,\
 	io.openems.edge.pvinverter.api,\
+	io.openems.edge.timedata.api,\
 	io.openems.j2mod,\
 
 -testpath: \

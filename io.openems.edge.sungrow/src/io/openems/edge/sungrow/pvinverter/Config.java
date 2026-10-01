@@ -3,8 +3,11 @@ package io.openems.edge.sungrow.pvinverter;
 import org.osgi.service.metatype.annotations.AttributeDefinition;
 import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 
-@ObjectClassDefinition(name = "PV-Inverter Sungrow", //
-		description = "Implements the Sungrow SG series PV inverter.")
+import io.openems.common.types.MeterType;
+
+@ObjectClassDefinition(//
+		name = "PV-Inverter Sungrow", //
+		description = "Implements the Sungrow PV inverter")
 @interface Config {
 
 	@AttributeDefinition(name = "Component-ID", description = "Unique ID of this Component")
@@ -16,7 +19,7 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 	@AttributeDefinition(name = "Is enabled?", description = "Is this Component enabled?")
 	boolean enabled() default true;
 
-	@AttributeDefinition(name = "Read-Only mode", description = "In Read-Only mode no power-limitation commands are sent to the inverter")
+	@AttributeDefinition(name = "Read-Only mode", description = "Set to true, if PV Inverter should only be read.")
 	boolean readOnly() default true;
 
 	@AttributeDefinition(name = "Modbus-ID", description = "ID of Modbus bridge.")
@@ -25,8 +28,9 @@ import org.osgi.service.metatype.annotations.ObjectClassDefinition;
 	@AttributeDefinition(name = "Modbus Unit-ID", description = "The Unit-ID of the Modbus device.")
 	int modbusUnitId() default 1;
 
-	@AttributeDefinition(name = "Phase Wiring", description = "Output type of the inverter. 3P4L reports phase voltages, 3P3L reports line voltages.")
-	PhaseWiring phaseWiring() default PhaseWiring.THREE_PHASE_FOUR_WIRE;
+	@AttributeDefinition(name = "Meter-Type", description = "Always Production")
+	MeterType type() default MeterType.PRODUCTION;
 
 	String webconsole_configurationFactory_nameHint() default "PV-Inverter Sungrow [{id}]";
+
 }

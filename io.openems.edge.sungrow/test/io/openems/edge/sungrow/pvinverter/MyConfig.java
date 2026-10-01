@@ -11,6 +11,7 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 		private String modbusId = null;
 		private int modbusUnitId;
 		private boolean readOnly = true;
+		private PhaseWiring phaseWiring = PhaseWiring.THREE_PHASE_FOUR_WIRE;
 
 		private Builder() {
 		}
@@ -32,6 +33,11 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 
 		public Builder setReadOnly(boolean readOnly) {
 			this.readOnly = readOnly;
+			return this;
+		}
+
+		public Builder setPhaseWiring(PhaseWiring phaseWiring) {
+			this.phaseWiring = phaseWiring;
 			return this;
 		}
 
@@ -74,6 +80,11 @@ public class MyConfig extends AbstractComponentConfig implements Config {
 	@Override
 	public MeterType type() {
 		return MeterType.PRODUCTION;
+	}
+
+	@Override
+	public PhaseWiring phaseWiring() {
+		return this.builder.phaseWiring;
 	}
 
 }

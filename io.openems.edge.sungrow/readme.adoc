@@ -6,7 +6,19 @@ Support for
   - DC-Chargers (`Ess.Sungrow.DcCharger`)
   - Grid-Meter (`Ess.Sungrow.Gridmeter`)
 
-- Sungrow PV-Inverter
+- Sungrow PV-Inverter (`PV-Inverter.Sungrow`)
+
+== PV-Inverter
+
+Implements the Sungrow SG series grid-connected PV string inverters, for example the SG*CX and SG*CX-P2 models with up to twelve MPPT inputs.
+
+* `phaseWiring`: `THREE_PHASE_FOUR_WIRE` (3P4L) maps the voltage registers to the phase voltages. `THREE_PHASE_THREE_WIRE` (3P3L) maps them to the line voltages `VoltageL1L2`, `VoltageL2L3` and `VoltageL3L1` and derives the phase voltages by dividing by the square root of three. `WrongPhaseWiringConfigured` warns if the setting does not match the output type reported by the inverter.
+* `MaxActivePower` and `MaxApparentPower` follow the nominal active power, `MaxReactivePower` the nominal reactive power of the inverter.
+* Registers that are not supported by the inverter model report all bits set and are mapped to an undefined channel value, for example the MPPT channels above the number of inputs of the model.
+
+=== Power limitation
+
+With read-only mode disabled, `ActivePowerLimit` is written to the power limitation adjustment register in steps of 0.1 kW and capped to the nominal power. Without a requested limit the nominal power is written, so that a previous limit does not stay active on the inverter. The register is only written when the limit reported by the inverter differs from the target. `PvLimitFailed` reports a limit that could not be applied, `ReadOnlyModePvLimitFailed` a limit that was requested while read-only mode is active.
 
 If you need professional support with this implementation, please get in touch with opernikus GmbH (https://opernikus.de)
 

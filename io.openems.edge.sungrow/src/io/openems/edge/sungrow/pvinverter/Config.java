@@ -31,6 +31,9 @@ import io.openems.common.types.MeterType;
 	@AttributeDefinition(name = "Meter-Type", description = "Always Production")
 	MeterType type() default MeterType.PRODUCTION;
 
+	@AttributeDefinition(name = "Phase Wiring", description = "Output wiring of the inverter. 3P4L reports phase voltages, 3P3L reports line voltages.")
+	PhaseWiring phaseWiring() default PhaseWiring.THREE_PHASE_FOUR_WIRE;
+
 	String webconsole_configurationFactory_nameHint() default "PV-Inverter Sungrow [{id}]";
 
 }

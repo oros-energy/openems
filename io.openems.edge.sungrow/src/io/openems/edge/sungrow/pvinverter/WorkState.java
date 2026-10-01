@@ -15,7 +15,8 @@ public enum WorkState implements OptionsEnum {
 	DERATING_RUN(0x8100, "Derating run"), //
 	DISPATCH_RUN(0x8200, "Dispatch run"), //
 	FAULT(0x5500, "Fault"), //
-	COMMUNICATE_FAULT(0x2500, "Communicate fault") //
+	COMMUNICATE_FAULT(0x2500, "Communicate fault"), //
+	UNINITIALIZED(0x1111, "Uninitialized") //
 	;
 
 	private int value;

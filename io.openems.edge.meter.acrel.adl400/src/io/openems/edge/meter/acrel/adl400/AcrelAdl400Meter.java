@@ -393,6 +393,11 @@ public interface AcrelAdl400Meter extends ElectricityMeter, OpenemsComponent {
 		this.getPowerFactorL3Channel().setNextValue(value);
 	}
 
+	/**
+	 * Derives the phase voltages from the measured line to line voltages.
+	 *
+	 * @param meter the {@link AcrelAdl400Meter}
+	 */
 	public static void calculatePhaseVoltages(AcrelAdl400Meter meter) {
 		meter.getVoltageL1L2Channel().onSetNextValue(value -> {
 			meter._setVoltageL1(calculatePhaseVoltage(value.get()));

@@ -1,12 +1,10 @@
 package io.openems.edge.meter.phoenixcontact;
 
-import io.openems.common.channel.PersistencePriority;
 import io.openems.common.channel.Unit;
 import io.openems.common.types.OpenemsType;
 import io.openems.edge.common.channel.Doc;
 import io.openems.edge.common.channel.FloatReadChannel;
 import io.openems.edge.common.channel.IntegerReadChannel;
-import io.openems.edge.common.channel.LongReadChannel;
 import io.openems.edge.common.channel.value.Value;
 import io.openems.edge.common.component.OpenemsComponent;
 import io.openems.edge.meter.api.ElectricityMeter;
@@ -70,15 +68,7 @@ public interface PhoenixContactMeter extends ElectricityMeter, OpenemsComponent 
 				.text("Phase Angle U-I L2")), //
 		PHASE_ANGLE_L3(Doc.of(OpenemsType.FLOAT) //
 				.unit(Unit.DECIMAL_DEGREE) //
-				.text("Phase Angle U-I L3")), //
-		REACTIVE_LAGGING_ENERGY(Doc.of(OpenemsType.LONG) //
-				.unit(Unit.VOLT_AMPERE_REACTIVE_HOURS) //
-				.persistencePriority(PersistencePriority.HIGH) //
-				.text("Lagging Reactive Energy (integral over positive/inductive reactive power)")), //
-		REACTIVE_LEADING_ENERGY(Doc.of(OpenemsType.LONG) //
-				.unit(Unit.VOLT_AMPERE_REACTIVE_HOURS) //
-				.persistencePriority(PersistencePriority.HIGH) //
-				.text("Leading Reactive Energy (integral over negative/capacitive reactive power)"));
+				.text("Phase Angle U-I L3"));
 
 		private final Doc doc;
 
@@ -632,69 +622,6 @@ public interface PhoenixContactMeter extends ElectricityMeter, OpenemsComponent 
 		this.getPhaseAngleL3Channel().setNextValue(value);
 	}
 
-	/**
-	 * Gets the Channel for {@link ChannelId#REACTIVE_LAGGING_ENERGY}.
-	 *
-	 * @return the Channel
-	 */
-	public default LongReadChannel getReactiveLaggingEnergyChannel() {
-		return this.channel(ChannelId.REACTIVE_LAGGING_ENERGY);
-	}
-
-	/**
-	 * Gets the Lagging Reactive Energy in [varh]. See
-	 * {@link ChannelId#REACTIVE_LAGGING_ENERGY}.
-	 *
-	 * @return the Channel {@link Value}
-	 */
-	public default Value<Long> getReactiveLaggingEnergy() {
-		return this.getReactiveLaggingEnergyChannel().value();
-	}
-
-	/**
-	 * Internal method to set the 'nextValue' on
-	 * {@link ChannelId#REACTIVE_LAGGING_ENERGY} Channel.
-	 *
-	 * @param value the next value
-	 */
-	public default void _setReactiveLaggingEnergy(Long value) {
-		this.getReactiveLaggingEnergyChannel().setNextValue(value);
-	}
-
-	/**
-	 * Gets the Channel for {@link ChannelId#REACTIVE_LEADING_ENERGY}.
-	 *
-	 * @return the Channel
-	 */
-	public default LongReadChannel getReactiveLeadingEnergyChannel() {
-		return this.channel(ChannelId.REACTIVE_LEADING_ENERGY);
-	}
-
-	/**
-	 * Gets the Leading Reactive Energy in [varh]. See
-	 * {@link ChannelId#REACTIVE_LEADING_ENERGY}.
-	 *
-	 * @return the Channel {@link Value}
-	 */
-	public default Value<Long> getReactiveLeadingEnergy() {
-		return this.getReactiveLeadingEnergyChannel().value();
-	}
-
-	/**
-	 * Internal method to set the 'nextValue' on
-	 * {@link ChannelId#REACTIVE_LEADING_ENERGY} Channel.
-	 *
-	 * @param value the next value
-	 */
-	public default void _setReactiveLeadingEnergy(Long value) {
-		this.getReactiveLeadingEnergyChannel().setNextValue(value);
-	}
-
-	/**
-	 * Derives the phase voltages from the measured line to line voltages.
-	 *
-	 * @param meter the {@link PhoenixContactMeter}
-	 */
 	public static void calculatePhaseVoltages(PhoenixContactMeter meter) {
 		meter.getVoltageL1L2Channel().onSetNextValue(value -> {
 			meter._setVoltageL1(calculatePhaseVoltage(value.get()));

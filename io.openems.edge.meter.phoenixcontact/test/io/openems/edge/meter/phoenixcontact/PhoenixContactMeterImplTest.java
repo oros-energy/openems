@@ -87,8 +87,8 @@ public class PhoenixContactMeterImplTest {
 						// "consumed" (import) -> ACTIVE_PRODUCTION_ENERGY
 						.output(ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY, 10000L) //
 						.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY, 20000L) //
-						.output(PhoenixContactMeter.ChannelId.REACTIVE_LAGGING_ENERGY, 30000L) //
-						.output(PhoenixContactMeter.ChannelId.REACTIVE_LEADING_ENERGY, 40000L) //
+						.output(ElectricityMeter.ChannelId.REACTIVE_LAGGING_ENERGY, 30000L) //
+						.output(ElectricityMeter.ChannelId.REACTIVE_LEADING_ENERGY, 40000L) //
 						.output(PhoenixContactMeter.ChannelId.PHASE_ANGLE, 15.0f) //
 						.output(PhoenixContactMeter.ChannelId.PHASE_ANGLE_L1, 15.0f) //
 						.output(PhoenixContactMeter.ChannelId.VOLTAGE_HARMONIC_DISTORTION_L1, 1.1f) //
@@ -133,8 +133,8 @@ public class PhoenixContactMeterImplTest {
 						.output(ElectricityMeter.ChannelId.ACTIVE_POWER_L1, -300) //
 						.output(ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY, 20000L) //
 						.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY, 10000L) //
-						.output(PhoenixContactMeter.ChannelId.REACTIVE_LAGGING_ENERGY, 40000L) //
-						.output(PhoenixContactMeter.ChannelId.REACTIVE_LEADING_ENERGY, 30000L));
+						.output(ElectricityMeter.ChannelId.REACTIVE_LAGGING_ENERGY, 40000L) //
+						.output(ElectricityMeter.ChannelId.REACTIVE_LEADING_ENERGY, 30000L));
 	}
 
 	@Test
@@ -182,8 +182,8 @@ public class PhoenixContactMeterImplTest {
 						.output(PhoenixContactMeter.ChannelId.POWER_FACTOR_L1, null) //
 						.output(ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY, 10000L) //
 						.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY, 20000L) //
-						.output(PhoenixContactMeter.ChannelId.REACTIVE_LAGGING_ENERGY, 30000L) //
-						.output(PhoenixContactMeter.ChannelId.REACTIVE_LEADING_ENERGY, 40000L) //
+						.output(ElectricityMeter.ChannelId.REACTIVE_LAGGING_ENERGY, 30000L) //
+						.output(ElectricityMeter.ChannelId.REACTIVE_LEADING_ENERGY, 40000L) //
 						.output(PhoenixContactMeter.ChannelId.PHASE_ANGLE, 15.0f) //
 						.output(PhoenixContactMeter.ChannelId.VOLTAGE_HARMONIC_DISTORTION_L1_L2, 2.5f) //
 						.output(PhoenixContactMeter.ChannelId.VOLTAGE_HARMONIC_DISTORTION_L2_L3, 2.6f) //
@@ -244,8 +244,8 @@ public class PhoenixContactMeterImplTest {
 						.output(PhoenixContactMeter.ChannelId.POWER_FACTOR_L1, 0.95f) //
 						.output(ElectricityMeter.ChannelId.ACTIVE_PRODUCTION_ENERGY, 10000L) //
 						.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY, 20000L) //
-						.output(PhoenixContactMeter.ChannelId.REACTIVE_LAGGING_ENERGY, 30000L) //
-						.output(PhoenixContactMeter.ChannelId.REACTIVE_LEADING_ENERGY, 40000L) //
+						.output(ElectricityMeter.ChannelId.REACTIVE_LAGGING_ENERGY, 30000L) //
+						.output(ElectricityMeter.ChannelId.REACTIVE_LEADING_ENERGY, 40000L) //
 						.output(PhoenixContactMeter.ChannelId.PHASE_ANGLE, 15.0f) //
 						.output(PhoenixContactMeter.ChannelId.PHASE_ANGLE_L1, 15.0f) //
 						.output(PhoenixContactMeter.ChannelId.VOLTAGE_HARMONIC_DISTORTION_L1, 1.1f) //

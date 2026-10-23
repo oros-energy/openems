@@ -37,6 +37,14 @@ import io.openems.shared.timescaledb.schema.ChannelManager;
  */
 public class ReadHandler {
 
+	/**
+	 * How far before the window {@link #queryHistoricEnergy} looks for the counter
+	 * reading at its start when it reads raw rows. The Edge writes every channel
+	 * at least once a minute and the Backend receives all values every five
+	 * minutes, so this span holds a reading unless the Edge was offline.
+	 */
+	private static final Duration RAW_ENERGY_LOOKBACK = Duration.ofMinutes(15);
+
 	private final Logger log = LoggerFactory.getLogger(ReadHandler.class);
 
 	private final HikariDataSource dataSource;
@@ -307,7 +315,10 @@ public class ReadHandler {
 	 * Reads the counter readings from the coarsest aggregate tier that still holds
 	 * the window ({@code last_value}), falling back to raw for non-aggregated or
 	 * string channels. No smoothing is involved: {@code last_value} is the reading
-	 * at the end of its bucket, exactly what a raw scan would pick.
+	 * at the end of its bucket, exactly what a raw scan would pick. The query
+	 * window is extended by one bucket before {@code from}, or by a short span on
+	 * raw, so the first bucket is measured from the counter reading at the start
+	 * of the window.
 	 *
 	 * @param edgeName The Edge identifier
 	 * @param from     Start time
@@ -330,16 +341,19 @@ public class ReadHandler {
 
 				// A total needs no particular resolution, so Long.MAX_VALUE asks for
 				// the coarsest tier that still holds the window.
-				String source = this.pickSource(info.type(), info.aggregate(), Long.MAX_VALUE, from);
-				boolean raw = isRawTable(source);
+				var tier = this.pickTier(info.type(), info.aggregate(), Long.MAX_VALUE, from);
+				String source = sourceOf(info.type(), tier);
+				boolean raw = tier == null;
 				String valueCol = raw ? "value" : "last_value";
 				String timeCol = raw ? "time" : "bucket";
+				var extendedFrom = from.minus(tier == null ? RAW_ENERGY_LOOKBACK : tier.bucket());
 
 				// Sum positive deltas, treating any downward jump as a counter reset
-				// where the post-reset value itself counts as accumulation.
+				// where the post-reset value itself counts as accumulation. Rows before
+				// 'from' only serve as the previous reading of the first row in the window.
 				String sql = """
 						WITH ordered AS (
-						    SELECT %s AS val, LAG(%s) OVER (ORDER BY %s) AS prev
+						    SELECT %s AS t, %s AS val, LAG(%s) OVER (ORDER BY %s) AS prev
 						    FROM %s
 						    WHERE channel_id = ? AND %s >= ? AND %s < ?
 						)
@@ -349,11 +363,13 @@ public class ReadHandler {
 						    ELSE val
 						END) AS delta
 						FROM ordered
-						""".formatted(valueCol, valueCol, timeCol, source, timeCol, timeCol);
+						WHERE t >= ?
+						""".formatted(timeCol, valueCol, valueCol, timeCol, source, timeCol, timeCol);
 				try (var pst = con.prepareStatement(sql)) {
 					pst.setObject(1, info.channelId());
-					pst.setObject(2, from.toOffsetDateTime());
+					pst.setObject(2, extendedFrom.toOffsetDateTime());
 					pst.setObject(3, to.toOffsetDateTime());
+					pst.setObject(4, from.toOffsetDateTime());
 					try (ResultSet rs = pst.executeQuery()) {
 						if (rs.next()) {
 							Object v = rs.getObject(1);
@@ -590,9 +606,22 @@ public class ReadHandler {
 	 * @return the unqualified table or materialized-view name
 	 */
 	private String pickSource(Type type, boolean aggregate, long bucketSeconds, ZonedDateTime from) {
+		return sourceOf(type, this.pickTier(type, aggregate, bucketSeconds, from));
+	}
+
+	/**
+	 * Picks the aggregate tier that {@link #pickSource} reads from.
+	 *
+	 * @param type          INTEGER / FLOAT / STRING
+	 * @param aggregate     whether the channel is in the aggregate layer
+	 * @param bucketSeconds desired bucket size in seconds
+	 * @param from          start of the query window (its oldest point)
+	 * @return the tier, or {@code null} to read raw
+	 */
+	private Aggregate pickTier(Type type, boolean aggregate, long bucketSeconds, ZonedDateTime from) {
 		// Strings are never aggregated; non-aggregated channels live in raw only.
 		if (type == Type.STRING || !aggregate) {
-			return type.rawTableName;
+			return null;
 		}
 		// Aggregates are ordered ascending by bucket: the last tier that both fits
 		// the requested resolution and still holds the window is the coarsest match.
@@ -602,10 +631,22 @@ public class ReadHandler {
 				chosen = agg;
 			}
 		}
-		if (chosen == null) {
+		return chosen;
+	}
+
+	/**
+	 * The raw hypertable, or the view of an aggregate tier, that holds the values
+	 * of a type.
+	 *
+	 * @param type the value type of the channel
+	 * @param tier the aggregate tier, or {@code null} for raw
+	 * @return the unqualified table or materialized-view name
+	 */
+	private static String sourceOf(Type type, Aggregate tier) {
+		if (tier == null) {
 			return type.rawTableName;
 		}
-		return "data_" + chosen.name() + "_" + type.aggInfix;
+		return "data_" + tier.name() + "_" + type.aggInfix;
 	}
 
 	/**

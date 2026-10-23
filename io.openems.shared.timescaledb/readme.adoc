@@ -155,9 +155,10 @@ Each tier row carries `min_value`, `max_value`, `avg_value`, `last_value` and
 `num_values`. The Timedata API uses two of them: instantaneous channels
 re-bucket `avg_value`, and energy queries (`queryHistoricEnergy*`) take
 `last_value` as the counter reading at the end of each bucket and subtract the
-previous one, with counter-reset detection. `min_value` and `max_value` are for
-consumers outside this bundle. Non-aggregated and string channels fall back to
-`last(value, time)` over raw.
+previous one, with counter-reset detection. Both read one bucket before the
+window as well, so the first bucket has a previous reading too. `min_value` and
+`max_value` are for consumers outside this bundle. Non-aggregated and string
+channels fall back to `last(value, time)` over raw.
 
 A fine-grained query on a channel that is *not* aggregated logs a one-time
 `WARN … consider adding it to AggregateChannels`.

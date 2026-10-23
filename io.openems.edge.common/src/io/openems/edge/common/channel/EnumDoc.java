@@ -4,6 +4,7 @@ import java.util.Arrays;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import io.openems.common.channel.Aggregation;
 import io.openems.common.channel.ChannelCategory;
 import io.openems.common.exceptions.OpenemsError;
 import io.openems.common.exceptions.OpenemsError.OpenemsNamedException;
@@ -18,7 +19,7 @@ public class EnumDoc extends AbstractDoc<Integer> {
 	private final OptionsEnum[] options;
 
 	public EnumDoc(OptionsEnum[] options) {
-		super(OpenemsType.INTEGER);
+		super(OpenemsType.INTEGER, Aggregation.MOST_FREQUENT);
 		this.options = options;
 	}
 

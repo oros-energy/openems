@@ -15,6 +15,7 @@ import com.google.common.collect.Lists;
 import com.google.gson.JsonElement;
 
 import io.openems.common.channel.Aggregation;
+import io.openems.common.channel.Unit;
 import io.openems.common.function.ThrowingFunction;
 import io.openems.common.types.OpenemsType;
 import io.openems.common.types.OptionsEnum;
@@ -28,44 +29,55 @@ public class SendChannelValuesWorkerTest {
 
 	@Test
 	public void testAggregateNaturalCumulated() {
-		final var value = SendChannelValuesWorker.aggregate(true, OpenemsType.LONG, //
+		final var value = SendChannelValuesWorker.aggregate(Aggregation.MAX, OpenemsType.LONG, //
 				Lists.newArrayList(2, 4));
 		assertEquals(4, value.getAsLong());
 	}
 
 	@Test
 	public void testAggregateNaturalNotCumulated() {
-		final var value = SendChannelValuesWorker.aggregate(false, OpenemsType.LONG, //
+		final var value = SendChannelValuesWorker.aggregate(Aggregation.MEAN, OpenemsType.LONG, //
 				Lists.newArrayList(2, 7));
 		assertEquals(5, value.getAsLong());
 	}
 
 	@Test
 	public void testAggregateFloatingCumulated() {
-		final var value = SendChannelValuesWorker.aggregate(true, OpenemsType.DOUBLE, //
+		final var value = SendChannelValuesWorker.aggregate(Aggregation.MAX, OpenemsType.DOUBLE, //
 				Lists.newArrayList(2.23, 4.75));
 		assertEquals(4.75, value.getAsDouble(), 0);
 	}
 
 	@Test
 	public void testAggregateFloatingNotCumulated() {
-		final var value = SendChannelValuesWorker.aggregate(false, OpenemsType.DOUBLE, //
+		final var value = SendChannelValuesWorker.aggregate(Aggregation.MEAN, OpenemsType.DOUBLE, //
 				Lists.newArrayList(2.9, 7.1));
 		assertEquals(5, value.getAsDouble(), 0);
 	}
 
 	@Test
-	public void testAggregateStringCumulated() {
-		final var value = SendChannelValuesWorker.aggregate(true, OpenemsType.STRING, //
+	public void testAggregateString() {
+		final var value = SendChannelValuesWorker.aggregate(Aggregation.FIRST, OpenemsType.STRING, //
 				Lists.newArrayList("a", "b", "c", "d", "e"));
 		assertEquals("a", value.getAsString());
 	}
 
 	@Test
-	public void testAggregateStringNotCumulated() {
-		final var value = SendChannelValuesWorker.aggregate(false, OpenemsType.STRING, //
-				Lists.newArrayList("a", "b", "c", "d", "e"));
-		assertEquals("a", value.getAsString());
+	public void testAggregateBooleanMeanIsTheMajority() {
+		assertEquals(1, SendChannelValuesWorker.aggregate(Aggregation.MEAN, OpenemsType.BOOLEAN, //
+				Lists.newArrayList(true, true, false)).getAsLong());
+		assertEquals(0, SendChannelValuesWorker.aggregate(Aggregation.MEAN, OpenemsType.BOOLEAN, //
+				Lists.newArrayList(true, false, false)).getAsLong());
+	}
+
+	@Test
+	public void testAggregateWithMostFrequent() {
+		assertEquals(1, SendChannelValuesWorker.aggregate(Aggregation.MOST_FREQUENT, OpenemsType.INTEGER, //
+				Lists.newArrayList(1, 1, 3)).getAsInt());
+		assertEquals(1, SendChannelValuesWorker.aggregate(Aggregation.MOST_FREQUENT, OpenemsType.INTEGER, //
+				Lists.newArrayList(1, 3, 3, 1)).getAsInt());
+		assertEquals("b", SendChannelValuesWorker.aggregate(Aggregation.MOST_FREQUENT, OpenemsType.STRING, //
+				Lists.newArrayList("a", "b", "b")).getAsString());
 	}
 
 	@Test
@@ -221,6 +233,18 @@ public class SendChannelValuesWorkerTest {
 	}
 
 	@Test
+	public void testAggregateChannelTakesTheMeanByDefault() throws Exception {
+		final var value = aggregateWrittenValues(DummyComponent.ChannelId.DUMMY_LONG_CHANNEL, 2L, 7L);
+		assertEquals(5, value.getAsLong());
+	}
+
+	@Test
+	public void testAggregateChannelTakesTheHighestValueOfACumulatedUnit() throws Exception {
+		final var value = aggregateWrittenValues(DummyComponent.ChannelId.DUMMY_ENERGY_CHANNEL, 1000L, 1005L, 1010L);
+		assertEquals(1010, value.getAsLong());
+	}
+
+	@Test
 	public void testAggregateChannelWithMaxAggregation() throws Exception {
 		final var value = aggregateWrittenValues(DummyComponent.ChannelId.DUMMY_ENUM_MAX_CHANNEL, //
 				DummyEnum.VALUE_1, DummyEnum.VALUE_1, DummyEnum.VALUE_1, DummyEnum.VALUE_3);
@@ -255,7 +279,7 @@ public class SendChannelValuesWorkerTest {
 
 		assertEquals(numberOfValues, channel.getPastValues().size());
 
-		final var aggregatedValue = SendChannelValuesWorker.aggregateEnumChannel(channel, start, end);
+		final var aggregatedValue = SendChannelValuesWorker.aggregateChannel(channel, start, end);
 		assertTrue(aggregatedValue.isJsonPrimitive());
 		assertTrue(aggregatedValue.getAsJsonPrimitive().isNumber());
 		assertEquals(expectedValue.getValue(), aggregatedValue.getAsInt());
@@ -309,6 +333,8 @@ public class SendChannelValuesWorkerTest {
 			DUMMY_ENUM_CHANNEL(Doc.of(DummyEnum.values())), //
 			DUMMY_ENUM_MAX_CHANNEL(Doc.of(DummyEnum.values()).aggregation(Aggregation.MAX)), //
 			DUMMY_ALARM_CHANNEL(Doc.of(OpenemsType.LONG).aggregation(Aggregation.BITWISE_OR)), //
+			DUMMY_LONG_CHANNEL(Doc.of(OpenemsType.LONG)), //
+			DUMMY_ENERGY_CHANNEL(Doc.of(OpenemsType.LONG).unit(Unit.CUMULATED_WATT_HOURS)), //
 			;
 
 			private final Doc doc;

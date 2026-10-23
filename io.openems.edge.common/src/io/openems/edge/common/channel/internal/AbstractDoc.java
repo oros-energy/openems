@@ -33,7 +33,12 @@ public abstract class AbstractDoc<T> implements Doc {
 	protected Function<Language, String> getTextFunction;
 
 	protected AbstractDoc(OpenemsType type) {
+		this(type, type == OpenemsType.STRING ? Aggregation.FIRST : Aggregation.MEAN);
+	}
+
+	protected AbstractDoc(OpenemsType type, Aggregation aggregation) {
 		this.type = type;
+		this.aggregation = aggregation;
 	}
 
 	/**
@@ -144,11 +149,11 @@ public abstract class AbstractDoc<T> implements Doc {
 	/**
 	 * Aggregation of the values of this Channel within a time window.
 	 */
-	private Aggregation aggregation = null;
+	private Aggregation aggregation;
 
 	/**
-	 * Sets the {@link Aggregation} of the values within a time window. Defaults to
-	 * null, which applies the default aggregation for the type of the Channel.
+	 * Sets the {@link Aggregation} of the values within a time window. See
+	 * {@link Aggregation} for the defaults.
 	 *
 	 * @param aggregation the {@link Aggregation}
 	 * @return myself
@@ -156,7 +161,7 @@ public abstract class AbstractDoc<T> implements Doc {
 	 *                                  applied to the type of the Channel
 	 */
 	public AbstractDoc<T> aggregation(Aggregation aggregation) {
-		if (aggregation != null && !aggregation.isApplicableTo(this.getType())) {
+		if (!aggregation.isApplicableTo(this.getType())) {
 			throw new IllegalArgumentException(
 					"Aggregation [" + aggregation + "] is not applicable to type [" + this.getType() + "]");
 		}

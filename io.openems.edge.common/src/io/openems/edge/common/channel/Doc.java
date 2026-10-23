@@ -134,10 +134,10 @@ public interface Doc {
 	public PersistencePriority getLocalPersistencePriority();
 
 	/**
-	 * Gets the {@link Aggregation} of the values within a time window. Defaults to
-	 * null, which applies the default aggregation for the type of the Channel.
+	 * Gets the {@link Aggregation} of the values within a time window. See
+	 * {@link Aggregation} for the defaults.
 	 *
-	 * @return the {@link Aggregation} or null
+	 * @return the {@link Aggregation}
 	 */
 	public Aggregation getAggregation();
 

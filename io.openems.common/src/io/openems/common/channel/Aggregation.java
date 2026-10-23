@@ -9,11 +9,21 @@ import io.openems.common.types.OpenemsType;
  *
  * <p>
  * The {@link Aggregation} of a Channel may be set via
- * AbstractDoc::aggregation(). Without it the values are aggregated to their
- * average, to their maximum for cumulated units, to the most frequent value for
- * an EnumDoc and to the first value for a String.
+ * AbstractDoc::aggregation(). Defaults are:
+ * <ul>
+ * <li>{@link #MOST_FREQUENT} for an EnumDoc
+ * <li>{@link #MAX} for a cumulated Unit
+ * <li>{@link #FIRST} for a String
+ * <li>{@link #MEAN} for everything else
+ * </ul>
  */
 public enum Aggregation {
+
+	/**
+	 * The average value, rounded for integer types. A Boolean is true if it was
+	 * true most of the time.
+	 */
+	MEAN, //
 
 	/**
 	 * The highest value. A Boolean is true if it was true at any time.
@@ -26,9 +36,19 @@ public enum Aggregation {
 	MIN, //
 
 	/**
+	 * The first value.
+	 */
+	FIRST, //
+
+	/**
 	 * The last value.
 	 */
 	LATEST, //
+
+	/**
+	 * The value that occurred most often. On a tie the one that occurred last.
+	 */
+	MOST_FREQUENT, //
 
 	/**
 	 * Every bit that was set at any time.
@@ -45,8 +65,8 @@ public enum Aggregation {
 	 */
 	public boolean isApplicableTo(OpenemsType type) {
 		return switch (this) {
-		case MAX, MIN -> type != OpenemsType.STRING;
-		case LATEST -> true;
+		case MEAN, MAX, MIN -> type != OpenemsType.STRING;
+		case FIRST, LATEST, MOST_FREQUENT -> true;
 		case BITWISE_OR -> type == OpenemsType.SHORT || type == OpenemsType.INTEGER || type == OpenemsType.LONG;
 		};
 	}

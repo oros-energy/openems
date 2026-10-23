@@ -1,6 +1,7 @@
 package io.openems.edge.common.channel.internal;
 
 import io.openems.common.channel.AccessMode;
+import io.openems.common.channel.Aggregation;
 import io.openems.common.channel.ChannelCategory;
 import io.openems.common.channel.Unit;
 import io.openems.common.types.OpenemsType;
@@ -56,6 +57,12 @@ public abstract class OpenemsTypeDoc<T> extends AbstractDoc<T> {
 		return this;
 	}
 
+	@Override
+	public OpenemsTypeDoc<T> aggregation(Aggregation aggregation) {
+		super.aggregation(aggregation);
+		return this;
+	}
+
 	/*
 	 * Unit
 	 */
@@ -64,11 +71,18 @@ public abstract class OpenemsTypeDoc<T> extends AbstractDoc<T> {
 	/**
 	 * Unit. Default: none
 	 *
+	 * <p>
+	 * A cumulated Unit changes the default {@link Aggregation#MEAN} to
+	 * {@link Aggregation#MAX}, because a cumulated value only grows.
+	 *
 	 * @param unit the Unit
 	 * @return myself
 	 */
 	public OpenemsTypeDoc<T> unit(Unit unit) {
 		this.unit = unit;
+		if (unit.isCumulated() && this.getAggregation() == Aggregation.MEAN) {
+			this.aggregation(Aggregation.MAX);
+		}
 		return this;
 	}
 

@@ -1,14 +1,9 @@
 package io.openems.edge.controller.api.backend;
 
-import static java.util.stream.Collectors.counting;
-import static java.util.stream.Collectors.groupingBy;
-
 import java.time.Duration;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZonedDateTime;
-import java.util.ArrayList;
-import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -21,8 +16,6 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.function.Function;
-import java.util.stream.Collector;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -42,7 +35,6 @@ import io.openems.common.timedata.DurationUnit;
 import io.openems.common.types.OpenemsType;
 import io.openems.common.utils.ThreadPoolUtils;
 import io.openems.edge.common.channel.Channel;
-import io.openems.edge.common.channel.EnumDoc;
 import io.openems.edge.common.component.OpenemsComponent;
 import io.openems.edge.common.type.TypeUtils;
 
@@ -238,9 +230,8 @@ public class SendChannelValuesWorker {
 	}
 
 	/**
-	 * Aggregates the values of a Channel within a time window. Applies the
-	 * {@link Aggregation} of the Channel Doc if one is set, otherwise the default
-	 * aggregation for the type of the Channel.
+	 * Aggregates the values of a Channel within a time window with the
+	 * {@link Aggregation} of its Doc.
 	 *
 	 * @param channel   the {@link Channel}
 	 * @param startTime the start of the window
@@ -258,146 +249,15 @@ public class SendChannelValuesWorker {
 				.ofNullable(channel.getPastValues().floorKey(startTime)) //
 				.orElse(startTime);
 
-		final var doc = channel.channelDoc();
-		final var aggregation = doc.getAggregation();
-		if (aggregation == null && doc instanceof EnumDoc) {
-			return aggregateEnumChannel(channel, channelStartTime, endTime);
-		}
-		final Collector<Object, ?, JsonElement> collector = aggregation == null //
-				? aggregateCollector(doc.getUnit().isCumulated(), channel.getType()) //
-				: aggregateCollector(aggregation, channel.getType());
-		return channel.getPastValues() //
-				.tailMap(channelStartTime, true) //
-				.entrySet() //
-				.stream() //
-				.filter(e -> e.getKey().isBefore(endTime)) //
-				.filter(e -> e.getValue().isDefined()).map(e -> e.getValue().get()) //
-				.collect(collector);
-	}
-
-	// TODO aggregation should be moved to doc
-	protected static JsonElement aggregateEnumChannel(//
-			Channel<?> channel, //
-			LocalDateTime channelStartTime, //
-			LocalDateTime endTime //
-	) {
-		final var doc = channel.channelDoc();
-		if (!(doc instanceof EnumDoc)) {
-			return JsonNull.INSTANCE;
-		}
-		final var numberOfValuesPerOption = channel.getPastValues() //
+		final var values = channel.getPastValues() //
 				.tailMap(channelStartTime, true) //
 				.entrySet() //
 				.stream() //
 				.filter(e -> e.getKey().isBefore(endTime)) //
 				.filter(e -> e.getValue().isDefined()) //
-				.map(e -> (Integer) e.getValue().get()) //
-				.collect(groupingBy(Function.identity(), counting()));
-
-		final var values = numberOfValuesPerOption.entrySet().stream() //
-				.sorted((o1, o2) -> Long.compare(o2.getValue(), o1.getValue())) //
+				.<Object>map(e -> e.getValue().get()) //
 				.toList();
-
-		final var maxValues = new ArrayList<Integer>();
-		var maxCount = -1L;
-		for (var entry : values) {
-			if (entry.getValue() < maxCount) {
-				break;
-			}
-			if (entry.getValue() == maxCount) {
-				maxValues.add(entry.getKey());
-				continue;
-			}
-			maxCount = entry.getValue();
-			maxValues.clear();
-			maxValues.add(entry.getKey());
-		}
-
-		// pick first value with most appearances
-		for (var entry : channel.getPastValues().descendingMap().entrySet()) {
-			for (var optionValue : maxValues) {
-				if (!entry.getValue().isDefined()) {
-					continue;
-				}
-				final var entryValue = entry.getValue().get();
-				if (((Integer) entryValue).intValue() == optionValue) {
-					return new JsonPrimitive(optionValue);
-				}
-			}
-		}
-		return JsonNull.INSTANCE;
-	}
-
-	protected static Collector<Object, ?, JsonElement> aggregateCollector(//
-			final boolean isCumulated, //
-			final OpenemsType type //
-	) {
-		return Collector.of(ArrayList::new, //
-				(a, b) -> a.add(b), //
-				(a, b) -> {
-					b.addAll(a);
-					return b;
-				}, //
-				t -> aggregate(isCumulated, type, t) //
-		);
-	}
-
-	protected static Collector<Object, ?, JsonElement> aggregateCollector(//
-			final Aggregation aggregation, //
-			final OpenemsType type //
-	) {
-		return Collector.of(ArrayList::new, //
-				(a, b) -> a.add(b), //
-				(a, b) -> {
-					a.addAll(b);
-					return a;
-				}, //
-				t -> aggregate(aggregation, type, t) //
-		);
-	}
-
-	protected static JsonElement aggregate(boolean isCumulated, OpenemsType type, Collection<Object> values)
-			throws IllegalArgumentException {
-		switch (type) {
-		case DOUBLE, FLOAT -> {
-			final var stream = values.stream() //
-					.mapToDouble(item -> TypeUtils.getAsType(OpenemsType.DOUBLE, item));
-			if (isCumulated) {
-				final var maxOpt = stream.max();
-				if (maxOpt.isPresent()) {
-					return new JsonPrimitive(maxOpt.getAsDouble());
-				}
-			} else {
-				final var avgOpt = stream.average();
-				if (avgOpt.isPresent()) {
-					return new JsonPrimitive(avgOpt.getAsDouble());
-				}
-			}
-		}
-		// round averages to their type
-		case BOOLEAN, LONG, INTEGER, SHORT -> {
-			final var stream = values.stream() //
-					.mapToLong(item -> TypeUtils.getAsType(OpenemsType.LONG, item));
-			if (isCumulated) {
-				final var maxOpt = stream.max();
-				if (maxOpt.isPresent()) {
-					return new JsonPrimitive(maxOpt.getAsLong());
-				}
-			} else {
-				final var avgOpt = stream.average();
-				if (avgOpt.isPresent()) {
-					return new JsonPrimitive(Math.round(avgOpt.getAsDouble()));
-				}
-			}
-		}
-		case STRING -> {
-			// return first string for now
-			for (var item : values) {
-				return new JsonPrimitive(TypeUtils.<String>getAsType(type, item));
-			}
-		}
-		}
-		return JsonNull.INSTANCE;
+		return aggregate(channel.channelDoc().getAggregation(), channel.getType(), values);
 	}
 
 	/**
@@ -421,6 +281,17 @@ public class SendChannelValuesWorker {
 		}
 		final var isFloatingPoint = type == OpenemsType.FLOAT || type == OpenemsType.DOUBLE;
 		return switch (aggregation) {
+		case MEAN -> {
+			if (isFloatingPoint) {
+				yield new JsonPrimitive(values.stream() //
+						.mapToDouble(item -> TypeUtils.getAsType(OpenemsType.DOUBLE, item)) //
+						.average().getAsDouble());
+			}
+			// round averages to their type
+			yield new JsonPrimitive(Math.round(values.stream() //
+					.mapToLong(item -> TypeUtils.getAsType(OpenemsType.LONG, item)) //
+					.average().getAsDouble()));
+		}
 		case MAX, MIN -> {
 			if (isFloatingPoint) {
 				final var stream = values.stream() //
@@ -435,17 +306,41 @@ public class SendChannelValuesWorker {
 					? stream.max().getAsLong() //
 					: stream.min().getAsLong());
 		}
-		case LATEST -> {
-			final var latest = values.get(values.size() - 1);
-			yield switch (type) {
-			case BOOLEAN, SHORT, INTEGER, LONG -> new JsonPrimitive(TypeUtils.<Long>getAsType(OpenemsType.LONG, latest));
-			case FLOAT, DOUBLE -> new JsonPrimitive(TypeUtils.<Double>getAsType(OpenemsType.DOUBLE, latest));
-			case STRING -> new JsonPrimitive(TypeUtils.<String>getAsType(OpenemsType.STRING, latest));
-			};
-		}
+		case FIRST -> toJson(type, values.get(0));
+		case LATEST -> toJson(type, values.get(values.size() - 1));
+		case MOST_FREQUENT -> toJson(type, mostFrequent(values));
 		case BITWISE_OR -> new JsonPrimitive(values.stream() //
 				.mapToLong(item -> TypeUtils.getAsType(OpenemsType.LONG, item)) //
 				.reduce(0L, (a, b) -> a | b));
+		};
+	}
+
+	/**
+	 * Gets the value that occurs most often. On a tie it is the one that occurs
+	 * last.
+	 *
+	 * @param values the values, oldest first
+	 * @return the most frequent value
+	 */
+	private static Object mostFrequent(List<Object> values) {
+		final var counts = new HashMap<Object, Integer>();
+		Object result = null;
+		var maxCount = 0;
+		for (var value : values) {
+			final var count = counts.merge(value, 1, Integer::sum);
+			if (count >= maxCount) {
+				maxCount = count;
+				result = value;
+			}
+		}
+		return result;
+	}
+
+	private static JsonElement toJson(OpenemsType type, Object value) {
+		return switch (type) {
+		case BOOLEAN, SHORT, INTEGER, LONG -> new JsonPrimitive(TypeUtils.<Long>getAsType(OpenemsType.LONG, value));
+		case FLOAT, DOUBLE -> new JsonPrimitive(TypeUtils.<Double>getAsType(OpenemsType.DOUBLE, value));
+		case STRING -> new JsonPrimitive(TypeUtils.<String>getAsType(OpenemsType.STRING, value));
 		};
 	}
 

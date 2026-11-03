@@ -69,6 +69,8 @@ class EvseAlpitronicModbusTest {
 				.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY_L1, null) //
 				.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY_L2, null) //
 				.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY_L3, null) //
+				.output(ElectricityMeter.ChannelId.REACTIVE_LAGGING_ENERGY, null) //
+				.output(ElectricityMeter.ChannelId.REACTIVE_LEADING_ENERGY, null) //
 				// EvseChargePoint
 				.output(EvseChargePoint.ChannelId.IS_READY_FOR_CHARGING, true) //
 				// ModbusComponent

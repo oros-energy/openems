@@ -93,6 +93,8 @@ class AlpitronicModbusTest {
 				.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY_L1, null) //
 				.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY_L2, null) //
 				.output(ElectricityMeter.ChannelId.ACTIVE_CONSUMPTION_ENERGY_L3, null) //
+				.output(ElectricityMeter.ChannelId.REACTIVE_LAGGING_ENERGY, null) //
+				.output(ElectricityMeter.ChannelId.REACTIVE_LEADING_ENERGY, null) //
 				// Evcs + ManagedEvcs + DeprecatedEvcs
 				.output(Evcs.ChannelId.STATUS, Status.CHARGING) //
 				.output(Evcs.ChannelId.CHARGING_TYPE, ChargingType.UNDEFINED) //

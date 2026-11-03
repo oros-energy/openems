@@ -211,7 +211,7 @@ export class Websocket implements WebsocketInterface {
                         .then((response) => resolve(response))
                         .catch(async (reason) => await this.handleJsonRpcError(reason, request, reject, resolve));
                 })
-                .finally(() => {});
+                .catch(reject);
         });
     }
 

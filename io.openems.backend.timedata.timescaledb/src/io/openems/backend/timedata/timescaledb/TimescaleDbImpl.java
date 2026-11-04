@@ -2,6 +2,7 @@ package io.openems.backend.timedata.timescaledb;
 
 import java.time.ZonedDateTime;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
@@ -189,12 +190,11 @@ public class TimescaleDbImpl extends AbstractOpenemsBackendComponent implements 
 		if (connector == null) {
 			return;
 		}
-		// TreeBasedTable keeps the row keys sorted, so first/last are the range
 		var timestamps = data.getData().rowKeySet();
 		if (timestamps.isEmpty()) {
 			return;
 		}
-		connector.scheduleAggregateRefresh(timestamps.first(), timestamps.last());
+		connector.scheduleAggregateRefresh(Collections.min(timestamps), Collections.max(timestamps));
 	}
 
 	private void writeData(String edgeId, AbstractDataNotification notification,

@@ -56,7 +56,9 @@ export enum WidgetFactory {
     "Evcs.Cluster.SelfConsumption",
     "Evcs.HardyBarth",
     "Evcs.Keba.KeContact",
+    "Evcs.Keba.P40",
     "Evcs.Mennekes",
+    "Evse.ChargePoint.Alfen",
     "Evse.ChargePoint.Keba.UDP",
     "Evse.Controller.Cluster",
     "Evse.Controller.Single",
@@ -162,7 +164,12 @@ export class Widgets {
                     continue;
                 }
                 const component = config.getComponent(componentId);
-                if (component.isEnabled) {
+
+                if (
+                    component.isEnabled &&
+                    component.factoryId != "Evcs.Cluster.PeakShaving" &&
+                    component.factoryId != "Evcs.Cluster.SelfConsumption"
+                ) {
                     list.push({
                         name: nature,
                         componentId: componentId,

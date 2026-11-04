@@ -12,6 +12,7 @@ import { Widget } from "src/app/shared/type/widget";
 import { Widgets } from "src/app/shared/type/widgets";
 import { DateUtils } from "src/app/shared/utils/date/dateutils";
 import { NumberUtils } from "src/app/shared/utils/number/number-utils";
+import { SharedControllerEnerixControl } from "../../../Controller/EnerixControl/shared/shared";
 import { SharedEssFixDigitalPowerControl } from "../../../Controller/Ess/FixActivePower/shared/shared";
 import { SharedGridOptimizedCharge } from "../../../Controller/Ess/GridOptimizedCharge/shared/shared";
 import { SharedControllerEssLimitTotalDischarge } from "../../../Controller/Ess/LimitTotalDischarge/shared/shared";
@@ -128,6 +129,16 @@ export namespace SharedStorage {
                         new NavigationTree(
                             ...SharedControllerPeakShavingAsymmetric.getNavigationTree(translate, component),
                         ),
+                ),
+
+            ...config
+                .getComponentsByFactory("Controller.Clever-PV")
+                .filter((component) => {
+                    return component.isEnabled && component.getPropertyFromComponent<boolean>("readOnly") === false;
+                })
+                .map(
+                    (component) =>
+                        new NavigationTree(...SharedControllerEnerixControl.getNavigationTree(translate, component)),
                 ),
         ];
 

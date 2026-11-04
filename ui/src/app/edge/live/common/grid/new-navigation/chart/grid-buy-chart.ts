@@ -36,11 +36,11 @@ export class GridBuyChartComponent extends ScheduleChartComponent {
 
         return [
             {
-                color: ChartConstants.Colors.BLUE_GREY,
+                color: ChartConstants.Colors.GRID_BUY,
                 data: history,
             },
             {
-                color: ChartConstants.Colors.BLUE_GREY,
+                color: ChartConstants.Colors.GRID_BUY,
                 data: prediction,
                 borderDash: ScheduleChartComponent.BORDER_DASHED,
                 opacity: ScheduleChartComponent.OPACITY_TRANSPARENT,

@@ -1,12 +1,13 @@
 // @ts-strict-ignore
 import { DecimalPipe, formatNumber } from "@angular/common";
-import { ChangeDetectorRef, Directive, EventEmitter, HostListener, inject, Input, OnDestroy, OnInit, Output, signal, ViewChild, WritableSignal, AfterViewInit, AfterContentInit, } from "@angular/core";
+import { AfterContentInit, AfterViewInit, ChangeDetectorRef, computed, Directive, EventEmitter, HostListener, inject, Input, OnDestroy, OnInit, Output, signal, ViewChild, WritableSignal, } from "@angular/core";
 import { ActivatedRoute } from "@angular/router";
 import { TranslateService } from "@ngx-translate/core";
 import * as Chart from "chart.js";
 import "chartjs-adapter-date-fns";
 import annotationPlugin from "chartjs-plugin-annotation";
 import ChartDataLabels from "chartjs-plugin-datalabels";
+import { Subscription } from "rxjs";
 import { v4 as uuidv4 } from "uuid";
 
 import { calculateResolution, ChronoUnit, DEFAULT_NUMBER_CHART_OPTIONS, DEFAULT_TIME_CHART_OPTIONS, isLabelVisible, Resolution, setLabelVisible, } from "src/app/edge/history/shared";
@@ -68,7 +69,7 @@ Chart.Tooltip.positioners["bottom"] = function (elements, eventPosition) {
 // NOTE: Auto-refresh of widgets is currently disabled to reduce server load
 
 @Directive()
-export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterViewInit, AfterContentInit {
+export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterContentInit, AfterViewInit {
     protected static readonly phaseColors: string[] = ["rgb(255,127,80)", "rgb(91, 92, 214)", "rgb(128,128,0)"];
 
     /** Title for Chart, diplayed above the Chart */
@@ -110,6 +111,13 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
     };
     protected viewHeight: string | null = null;
     protected routeService: RouteService = inject(RouteService);
+    protected chartHeight = computed(() => {
+        const _chartHeightRevision = this.chartHeightRevision();
+        return this.calculateViewHeight();
+    });
+    private historyPeriodSub: Subscription;
+    private readonly chartHeightRevision = signal(0);
+
     private layoutRefresh = inject(LayoutRefreshService);
     private heightOffset: number | null = null;
 
@@ -121,7 +129,7 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
         protected logger: Logger,
         protected navigationService: NavigationService,
     ) {
-        this.service.historyPeriod.subscribe(() => {
+        this.historyPeriodSub = this.service.historyPeriod.subscribe(() => {
             this.updateChart();
         });
     }
@@ -130,6 +138,7 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
     @Input() public set chartHeightOffset(value: number | null) {
         this.heightOffset = value;
         this.viewHeight = this.calculateViewHeight();
+        this.chartHeightRevision.update((revision) => revision + 1);
     }
 
     /**
@@ -654,13 +663,6 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
                 chartLegendLabelItems.push(chartLegendLabelItem);
             });
 
-            setTimeout(() => {
-                if (!(chart as any)._updated) {
-                    (chart as any)._updated = true; // Prevent multiple updates
-                    chart.update();
-                }
-            }, 0);
-
             return chartLegendLabelItems;
         };
 
@@ -809,7 +811,6 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
 
             rebuildScales(chart);
             showOrHideYAxis(_dataSets, chart);
-            chart.update();
         };
 
         options.scales.x.ticks["source"] = "auto";
@@ -823,6 +824,7 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
         options.plugins["syncChart"] = {
             group: 1,
         };
+
         return options;
     }
 
@@ -1288,18 +1290,17 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
 
     @HostListener("window:resize", ["$event.target.innerHeight"])
     onResize(height: number) {
-        this.ngAfterViewInit();
+        this.chartHeightRevision.update((value) => value + 1);
+        this.chartHeight();
+        this.cdRef.markForCheck();
     }
 
-    ngAfterViewInit() {
-        this.viewHeight = this.calculateViewHeight();
-        this.cdRef.detectChanges(); // Avoids ExpressionChangedAfterItHasBeenCheckedError
-    }
+    public calculateViewHeight(): string {
+        const availableHeight = ViewUtils.getChartContentHeightInVh(this.navigationService.position());
+        const heightPercentage = Math.min(100, Math.max(0, this.customChartHeightPercentage ?? 100));
+        const padding = ViewUtils.getChartOptionsPadding(this.options);
 
-    calculateViewHeight(): string {
-        const height =
-            ViewUtils.getChartContentHeightInVh(this.navigationService.position(), this.customChartHeightPercentage) +
-            "dvh";
+        const height = Math.max(0, (availableHeight * heightPercentage) / 100 - padding) + "dvh";
         if (this.heightOffset == null) {
             return height;
         }
@@ -1319,6 +1320,11 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
                 counter++;
             });
         });
+    }
+
+    ngAfterViewInit() {
+        this.viewHeight = this.calculateViewHeight();
+        this.cdRef.detectChanges(); // Avoids ExpressionChangedAfterItHasBeenCheckedError
     }
 
     /**
@@ -1363,6 +1369,10 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
 
     ngOnDestroy() {
         this.options = AbstractHistoryChart.removePlugins(this.options);
+        this.chartHeightRevision.set(0);
+        this.labels = [];
+        this.datasets = [];
+        this.historyPeriodSub?.unsubscribe();
     }
 
     protected getChartHeight(): number | null {
@@ -1398,6 +1408,8 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
             labels: this.labels,
             options: this.options,
         });
+
+        this.viewHeight = this.calculateViewHeight();
     }
 
     /**
@@ -1526,6 +1538,7 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
                     // load defaultchart
                     this.isDataExisting = false;
                     this.stopSpinner();
+                    this.chartHeightRevision.update((value) => value + 1);
                     this.initializeChart();
                 }
                 return response;
@@ -1606,6 +1619,7 @@ export abstract class AbstractHistoryChart implements OnInit, OnDestroy, AfterVi
         );
         this.loading = false;
         this.stopSpinner();
+        this.chartHeight();
     }
 
     /**

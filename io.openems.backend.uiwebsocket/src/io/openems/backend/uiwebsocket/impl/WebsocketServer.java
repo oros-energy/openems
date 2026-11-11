@@ -1,14 +1,17 @@
 package io.openems.backend.uiwebsocket.impl;
 
 import org.java_websocket.WebSocket;
+import org.java_websocket.drafts.Draft;
+import org.java_websocket.exceptions.InvalidDataException;
+import org.java_websocket.handshake.ClientHandshake;
 import org.slf4j.Logger;
 
 import io.openems.common.websocket.AbstractWebsocketServer;
-import io.openems.common.websocket.OnOpen;
 
 public class WebsocketServer extends AbstractWebsocketServer<WsData> {
 
 	protected final UiWebsocketImpl parent;
+	private final OnOpen onOpen;
 	private final OnRequest onRequest;
 	private final OnNotification onNotification;
 	private final OnError onError;
@@ -19,6 +22,7 @@ public class WebsocketServer extends AbstractWebsocketServer<WsData> {
 		super(name, port, poolSize);
 		this.parent = parent;
 		this.onRequest = new OnRequest(parent);
+		this.onOpen = new OnOpen(parent, this.onRequest);
 		this.onNotification = new OnNotification(parent);
 		this.onError = new OnError(parent);
 		this.onClose = new OnClose(parent);
@@ -31,8 +35,19 @@ public class WebsocketServer extends AbstractWebsocketServer<WsData> {
 	}
 
 	@Override
+	protected WsData onHandshake(WebSocket ws, Draft draft, ClientHandshake request) throws InvalidDataException {
+		final var wsData = super.onHandshake(ws, draft, request);
+		if (OnOpen.getBearerToken(request.getFieldValue(OnOpen.AUTHORIZATION_HEADER)) != null) {
+			// Marked during the handshake, so a request that arrives before OnOpen runs
+			// waits for the authentication.
+			wsData.beginConnectAuthentication();
+		}
+		return wsData;
+	}
+
+	@Override
 	protected OnOpen getOnOpen() {
-		return OnOpen.NO_OP;
+		return this.onOpen;
 	}
 
 	@Override

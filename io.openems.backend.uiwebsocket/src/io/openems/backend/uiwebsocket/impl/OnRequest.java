@@ -1,5 +1,6 @@
 package io.openems.backend.uiwebsocket.impl;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -12,6 +13,7 @@ import java.util.stream.Collectors;
 import org.java_websocket.WebSocket;
 import org.slf4j.Logger;
 
+import io.openems.backend.authentication.api.model.PasswordAuthenticationResult;
 import io.openems.backend.common.alerting.UserAlertingSettings;
 import io.openems.backend.common.component.AbstractOpenemsBackendComponent;
 import io.openems.backend.common.jsonrpc.request.AddEdgeToUserRequest;
@@ -98,6 +100,19 @@ public class OnRequest implements io.openems.common.websocket.OnRequest {
 	private CompletableFuture<? extends JsonrpcResponseSuccess> applyInternal(WebSocket ws, JsonrpcRequest request)
 			throws OpenemsNamedException {
 		WsData wsData = ws.getAttachment();
+
+		final var connectAuthentication = wsData.getConnectAuthentication();
+		if (!connectAuthentication.isDone()) {
+			// A request that arrives while the token of the handshake is checked waits
+			// for that check, so it does not fail as unauthenticated.
+			return connectAuthentication.thenCompose(ignore -> {
+				try {
+					return this.applyInternal(ws, request).thenApply(JsonrpcResponseSuccess.class::cast);
+				} catch (OpenemsNamedException e) {
+					throw new CompletionException(e);
+				}
+			});
+		}
 
 		// Start with authentication requests
 		switch (request.getMethod()) {
@@ -191,15 +206,70 @@ public class OnRequest implements io.openems.common.websocket.OnRequest {
 	 * @param request the {@link AuthenticateWithTokenRequest}
 	 * @return the JSON-RPC Success Response Future
 	 */
-	private CompletableFuture<JsonrpcResponseSuccess> handleAuthenticateWithTokenRequest(WsData wsData,
+	/* package */ CompletableFuture<JsonrpcResponseSuccess> handleAuthenticateWithTokenRequest(WsData wsData,
 			AuthenticateWithTokenRequest request) {
 		return this.parent.userAuthPasswordService.authenticateWithToken(request.getToken()).thenCompose(result -> {
 			return this.parent.metadata.getUserByExternalId(result.userId()).thenApply(user -> {
-				return user.withToken(result.token());
+				final var current = wsData.getUser();
+				if (current == null || current.getTokenExpiresAt().isEmpty()) {
+					return user.withToken(result.token());
+				}
+				this.assertFreshTokenOfSameUser(wsData, current, user, result);
+				return user.withToken(result.token(), result.expiresAt());
 			});
 		}).thenCompose(user -> {
 			return this.handleAuthentication(wsData, request.getId(), user, null);
 		});
+	}
+
+	/**
+	 * Authenticates a connection with the token from the handshake.
+	 *
+	 * <p>
+	 * The connection ends when that token expires, unless a fresh token of the same
+	 * user arrives in an {@link AuthenticateWithTokenRequest} before.
+	 *
+	 * @param wsData the WebSocket attachment
+	 * @param token  the token from the handshake
+	 * @return a {@link CompletableFuture} that completes when the connection is
+	 *         authenticated, or exceptionally if the token is refused
+	 */
+	/* package */ CompletableFuture<Void> authenticateOnConnect(WsData wsData, String token) {
+		final var authService = this.parent.userAuthPasswordService;
+		if (authService == null) {
+			return CompletableFuture.failedFuture(OpenemsError.COMMON_AUTHENTICATION_FAILED.exception());
+		}
+		return authService.authenticateWithToken(token).thenCompose(result -> {
+			if (result.expiresAt() == null) {
+				// Without an expiry the connection could not end with its token.
+				throw new CompletionException(OpenemsError.COMMON_AUTHENTICATION_FAILED.exception());
+			}
+			return this.parent.metadata.getUserByExternalId(result.userId()).thenAccept(user -> {
+				wsData.setToken(result.token());
+				wsData.setRefreshToken(null);
+				wsData.setUser(user.withToken(result.token(), result.expiresAt()));
+			});
+		});
+	}
+
+	/**
+	 * Asserts that a token on a connection whose session ends with its token is a
+	 * fresh token of the same user.
+	 *
+	 * @param wsData  the WebSocket attachment
+	 * @param current the current user of the connection
+	 * @param user    the user of the fresh token
+	 * @param result  the result of the authentication with the fresh token
+	 * @throws CompletionException if the fresh token belongs to another user or has
+	 *                             no expiry
+	 */
+	private void assertFreshTokenOfSameUser(WsData wsData, User current, User user,
+			PasswordAuthenticationResult result) {
+		if (!current.getUserId().equals(user.getUserId()) || result.expiresAt() == null) {
+			this.log.info("Refused a token on connection [{}] that authenticated on connect: it belongs to "
+					+ "another user or has no expiry", wsData.getId());
+			throw new CompletionException(OpenemsError.COMMON_AUTHENTICATION_FAILED.exception());
+		}
 	}
 
 	private CompletableFuture<JsonrpcResponseSuccess> handleAuthenticateWithOAuthTokenRequest(//
@@ -225,6 +295,10 @@ public class OnRequest implements io.openems.common.websocket.OnRequest {
 		final var token = wsData.getToken().orElse(null);
 		if (token == null) {
 			throw new OpenemsNamedException(OpenemsError.COMMON_USER_NOT_AUTHENTICATED, "[user]");
+		}
+
+		if (wsData.isTokenExpired(Instant.now())) {
+			throw OpenemsError.COMMON_AUTHENTICATION_FAILED.exception();
 		}
 
 		final var user = wsData.getUser();
@@ -262,8 +336,8 @@ public class OnRequest implements io.openems.common.websocket.OnRequest {
 	 * @param wsData       the WebSocket attachment
 	 * @param requestId    the ID of the original {@link JsonrpcRequest}
 	 * @param user         the authenticated {@link User}
-	 * @param refreshToken the refresh token, or null if the provider does not
-	 *                     issue one
+	 * @param refreshToken the refresh token, or null if the provider does not issue
+	 *                     one
 	 * @return the JSON-RPC Success Response Future
 	 */
 	private CompletableFuture<JsonrpcResponseSuccess> handleAuthentication(WsData wsData, UUID requestId, User user,

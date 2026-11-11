@@ -3,6 +3,7 @@ package io.openems.backend.uiwebsocket.impl;
 import static java.util.Collections.emptyMap;
 import static java.util.UUID.randomUUID;
 
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
@@ -10,6 +11,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.SortedSet;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 import org.java_websocket.WebSocket;
@@ -75,6 +77,8 @@ public class WsData extends io.openems.common.websocket.WsData {
 	private Optional<String> token = Optional.empty();
 	private Optional<String> refreshToken = Optional.empty();
 	private volatile User user;
+
+	private volatile CompletableFuture<Void> connectAuthentication = CompletableFuture.completedFuture(null);
 
 	/* package */ final Object updateSubscriptionsLock = new Object();
 	private final Set<String> subscribedEdges = ConcurrentHashMap.newKeySet();
@@ -180,6 +184,45 @@ public class WsData extends io.openems.common.websocket.WsData {
 	}
 
 	/**
+	 * Tells whether the session of this connection ends with its token and that
+	 * token has expired.
+	 *
+	 * @param now the current {@link Instant}
+	 * @return true if the token has expired
+	 */
+	public boolean isTokenExpired(Instant now) {
+		final var currentUser = this.user;
+		return currentUser != null && currentUser.getTokenExpiresAt() //
+				.map(expiresAt -> !now.isBefore(expiresAt)) //
+				.orElse(false);
+	}
+
+	/**
+	 * Marks that this connection authenticates with a token on connect. Requests
+	 * wait until {@link #completeConnectAuthentication()} is called.
+	 */
+	public void beginConnectAuthentication() {
+		this.connectAuthentication = new CompletableFuture<>();
+	}
+
+	/**
+	 * Marks the authentication on connect as finished, successful or not.
+	 */
+	public void completeConnectAuthentication() {
+		this.connectAuthentication.complete(null);
+	}
+
+	/**
+	 * Gets a {@link CompletableFuture} that completes when the authentication on
+	 * connect has finished, or at once if there is none.
+	 *
+	 * @return the {@link CompletableFuture}
+	 */
+	public CompletableFuture<Void> getConnectAuthentication() {
+		return this.connectAuthentication;
+	}
+
+	/**
 	 * Gets the token or throws an error if no token was set.
 	 *
 	 * @return the token
@@ -195,12 +238,9 @@ public class WsData extends io.openems.common.websocket.WsData {
 
 	@Override
 	protected String toLogString() {
+		// The token is a credential and is never written to a log.
 		return new StringBuilder("UiWebsocket.WsData [userId=") //
 				.append(this.getUserId().orElse("UNKNOWN")) //
-				.append(", token=") //
-				.append(this.token.isPresent() //
-						? this.token.get().toString() //
-						: "UNKNOWN") //
 				.append("]") //
 				.toString();
 	}

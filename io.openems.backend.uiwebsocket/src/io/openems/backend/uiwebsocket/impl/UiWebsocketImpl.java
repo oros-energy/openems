@@ -2,11 +2,17 @@ package io.openems.backend.uiwebsocket.impl;
 
 import static java.util.stream.Collectors.toUnmodifiableMap;
 
+import java.time.Instant;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
+
+import org.java_websocket.framing.CloseFrame;
 
 import org.osgi.service.component.annotations.Activate;
 import org.osgi.service.component.annotations.Component;
@@ -21,6 +27,7 @@ import org.osgi.service.event.EventHandler;
 import org.osgi.service.event.propertytypes.EventTopics;
 import org.osgi.service.metatype.annotations.Designate;
 import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import com.google.gson.JsonElement;
 import com.google.gson.JsonPrimitive;
@@ -45,6 +52,7 @@ import io.openems.common.jsonrpc.base.JsonrpcNotification;
 import io.openems.common.jsonrpc.base.JsonrpcRequest;
 import io.openems.common.jsonrpc.base.JsonrpcResponseSuccess;
 import io.openems.common.logger.DebugLoggable;
+import io.openems.common.utils.ThreadPoolUtils;
 
 @Designate(ocd = Config.class, factory = false)
 @Component(//
@@ -94,6 +102,11 @@ public class UiWebsocketImpl extends AbstractOpenemsBackendComponent
 
 	private Config config;
 
+	private final Logger log = LoggerFactory.getLogger(UiWebsocketImpl.class);
+
+	private final ScheduledExecutorService tokenExpiryExecutor = Executors
+			.newSingleThreadScheduledExecutor(Thread.ofVirtual().name("Ui.Websocket.TokenExpiry").factory());
+
 	@Activate
 	private void activate(Config config) {
 		this.config = config;
@@ -101,11 +114,35 @@ public class UiWebsocketImpl extends AbstractOpenemsBackendComponent
 		if (this.metadata.isInitialized()) {
 			this.startServer();
 		}
+		this.tokenExpiryExecutor.scheduleWithFixedDelay(() -> this.closeConnectionsWithExpiredToken(Instant.now()), 1,
+				1, TimeUnit.SECONDS);
 	}
 
 	@Deactivate
 	private void deactivate() {
+		ThreadPoolUtils.shutdownAndAwaitTermination(this.tokenExpiryExecutor, 5);
 		this.stopServer();
+	}
+
+	/**
+	 * Closes every connection that authenticated with a token on connect and whose
+	 * token has expired without a fresh token.
+	 *
+	 * @param now the current {@link Instant}
+	 */
+	protected void closeConnectionsWithExpiredToken(Instant now) {
+		final var server = this.server;
+		if (server == null) {
+			return;
+		}
+		for (var ws : server.getConnections()) {
+			final WsData wsData = ws.getAttachment();
+			if (wsData != null && wsData.isTokenExpired(now)) {
+				this.log.info("Closing connection [{}] of user [{}]: token expired", wsData.getId(),
+						wsData.getUserId().orElse("UNKNOWN"));
+				ws.close(CloseFrame.POLICY_VALIDATION, "Token expired");
+			}
+		}
 	}
 
 	/**

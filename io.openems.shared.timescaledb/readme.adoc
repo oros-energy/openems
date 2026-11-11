@@ -145,7 +145,7 @@ retention, or a string channel) it falls back to raw. Coarser calendar resolutio
 timezone. 15 minutes divides every real-world UTC offset, so the buckets stay exact.
 
 ----
- historic query --> pickSource(bucket size, window age)
+ historic query --> getSource(bucket size, window age)
    |
    |-- aggregated channel, a tier fits & is not expired .. coarsest such tier
    |-- otherwise (finer than 1m / expired / string) ...... raw

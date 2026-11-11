@@ -53,7 +53,7 @@ public class ReadHandler {
 	/**
 	 * The aggregate tiers this deployment's {@code SchemaHandler} built, sorted
 	 * ascending by bucket — the single source of truth for read routing, so
-	 * {@code pickSource()} never targets a tier that does not exist or whose
+	 * {@code getSource()} never targets a tier that does not exist or whose
 	 * retention has already dropped the queried window.
 	 */
 	private final List<Aggregate> aggregates;
@@ -70,7 +70,7 @@ public class ReadHandler {
 	 * @param dataSource     The Hikari connection pool
 	 * @param channelManager The ChannelManager to resolve channel metadata
 	 * @param aggregates     The aggregate tiers this deployment's SchemaHandler
-	 *                       enforces — used by pickSource() to route queries and
+	 *                       enforces — used by getSource() to route queries and
 	 *                       to avoid already-expired tiers
 	 */
 	public ReadHandler(HikariDataSource dataSource, ChannelManager channelManager,
@@ -240,7 +240,7 @@ public class ReadHandler {
 							+ "consider adding it to AggregateChannels", channel, approxBucketSecs);
 				}
 
-				String view = this.pickSource(info.type(), info.aggregate(), approxBucketSecs, from);
+				String view = this.getSource(info.type(), info.aggregate(), approxBucketSecs, from);
 				byView.computeIfAbsent(view, k -> new HashMap<>()).put(info.channelId(), channel);
 			}
 			for (var entry : byView.entrySet()) {
@@ -341,7 +341,7 @@ public class ReadHandler {
 
 				// A total needs no particular resolution, so Long.MAX_VALUE asks for
 				// the coarsest tier that still holds the window.
-				var tier = this.pickTier(info.type(), info.aggregate(), Long.MAX_VALUE, from);
+				var tier = this.findTier(info.type(), info.aggregate(), Long.MAX_VALUE, from);
 				String source = sourceOf(info.type(), tier);
 				boolean raw = tier == null;
 				String valueCol = raw ? "value" : "last_value";
@@ -420,7 +420,7 @@ public class ReadHandler {
 				if (info == null) {
 					continue;
 				}
-				String source = this.pickSource(info.type(), info.aggregate(), approxBucketSecs, extendedFrom);
+				String source = this.getSource(info.type(), info.aggregate(), approxBucketSecs, extendedFrom);
 				boolean raw = isRawTable(source);
 				String timeCol = raw ? "time" : "bucket";
 				String stepExpr = raw ? "last(value, time)" : "last(last_value, bucket)";
@@ -587,7 +587,7 @@ public class ReadHandler {
 	}
 
 	/**
-	 * Picks the source table/view for a channel at the requested resolution.
+	 * Gets the source table/view for a channel at the requested resolution.
 	 *
 	 * <p>
 	 * The aggregates are a pure acceleration layer over the aggregate-flagged
@@ -605,12 +605,12 @@ public class ReadHandler {
 	 * @param from          start of the query window (its oldest point)
 	 * @return the unqualified table or materialized-view name
 	 */
-	private String pickSource(Type type, boolean aggregate, long bucketSeconds, ZonedDateTime from) {
-		return sourceOf(type, this.pickTier(type, aggregate, bucketSeconds, from));
+	private String getSource(Type type, boolean aggregate, long bucketSeconds, ZonedDateTime from) {
+		return sourceOf(type, this.findTier(type, aggregate, bucketSeconds, from));
 	}
 
 	/**
-	 * Picks the aggregate tier that {@link #pickSource} reads from.
+	 * Finds the aggregate tier that {@link #getSource} reads from.
 	 *
 	 * @param type          INTEGER / FLOAT / STRING
 	 * @param aggregate     whether the channel is in the aggregate layer
@@ -618,7 +618,7 @@ public class ReadHandler {
 	 * @param from          start of the query window (its oldest point)
 	 * @return the tier, or {@code null} to read raw
 	 */
-	private Aggregate pickTier(Type type, boolean aggregate, long bucketSeconds, ZonedDateTime from) {
+	private Aggregate findTier(Type type, boolean aggregate, long bucketSeconds, ZonedDateTime from) {
 		// Strings are never aggregated; non-aggregated channels live in raw only.
 		if (type == Type.STRING || !aggregate) {
 			return null;

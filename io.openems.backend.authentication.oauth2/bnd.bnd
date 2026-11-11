@@ -15,4 +15,7 @@ Bundle-Version: 1.0.0.${tstamp}
 	io.openems.wrapper.auth0-jwks-rsa,\
 
 -testpath: \
-	${testpath}
+	${testpath},\
+	com.fasterxml.jackson.core.jackson-annotations,\
+	com.fasterxml.jackson.core.jackson-core,\
+	com.fasterxml.jackson.core.jackson-databind,\

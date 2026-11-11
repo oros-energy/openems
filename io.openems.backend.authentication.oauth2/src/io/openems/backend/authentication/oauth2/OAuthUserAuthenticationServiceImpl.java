@@ -7,6 +7,7 @@ import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Base64;
 import java.util.HashMap;
@@ -184,9 +185,26 @@ public class OAuthUserAuthenticationServiceImpl implements AuthUserRegistrationS
 			}
 		};
 
-		this.verifier = JWT.require(Algorithm.RSA256(keyProvider)) //
-				.withIssuer(this.issuerUrl.toString()) //
-				.build();
+		this.verifier = createVerifier(keyProvider, this.issuerUrl.toString(), config.audience(), Clock.systemUTC());
+	}
+
+	/**
+	 * Creates the {@link JWTVerifier} for access tokens.
+	 *
+	 * @param keyProvider the provider of the public keys of the identity provider
+	 * @param issuer      the expected issuer
+	 * @param audience    the audience a token must contain, or blank to accept any
+	 *                    audience
+	 * @param clock       the {@link Clock} that decides expiry and not-before
+	 * @return the {@link JWTVerifier}
+	 */
+	static JWTVerifier createVerifier(RSAKeyProvider keyProvider, String issuer, String audience, Clock clock) {
+		final var verification = JWT.require(Algorithm.RSA256(keyProvider)) //
+				.withIssuer(issuer);
+		if (audience != null && !audience.isBlank()) {
+			verification.withAnyOfAudience(audience);
+		}
+		return ((com.auth0.jwt.JWTVerifier.BaseVerification) verification).build(clock);
 	}
 
 	/**
@@ -215,7 +233,8 @@ public class OAuthUserAuthenticationServiceImpl implements AuthUserRegistrationS
 			final var email = jwtToken.getClaim("email").asString();
 
 			// email is currently treated as login (originally from odoo)
-			return new PasswordAuthenticationResult(jwtToken.getSubject(), email, token);
+			return new PasswordAuthenticationResult(jwtToken.getSubject(), email, token, null,
+					jwtToken.getExpiresAtAsInstant());
 		});
 	}
 
@@ -232,8 +251,8 @@ public class OAuthUserAuthenticationServiceImpl implements AuthUserRegistrationS
 			return CompletableFuture.completedFuture(null);
 		}
 		return CompletableFuture.supplyAsync(() -> this.getOemConfigForRefreshToken(refreshToken), this.executor)
-				.thenCompose(config -> KeycloakApi.logout(this.bridgeHttp, this.issuerUrl.toString(),
-						config.clientId(), config.clientSecret(), refreshToken));
+				.thenCompose(config -> KeycloakApi.logout(this.bridgeHttp, this.issuerUrl.toString(), config.clientId(),
+						config.clientSecret(), refreshToken));
 	}
 
 	@Override
@@ -479,8 +498,8 @@ public class OAuthUserAuthenticationServiceImpl implements AuthUserRegistrationS
 	 * Keycloak names that client in the azp claim of the token.
 	 *
 	 * @param refreshToken the refresh token
-	 * @return the matching config, or the service account config if the token
-	 *         does not name a configured client
+	 * @return the matching config, or the service account config if the token does
+	 *         not name a configured client
 	 */
 	private OAuthOemConfig getOemConfigForRefreshToken(String refreshToken) {
 		try {

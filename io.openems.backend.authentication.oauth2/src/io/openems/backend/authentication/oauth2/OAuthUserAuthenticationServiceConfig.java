@@ -26,6 +26,9 @@ public @interface OAuthUserAuthenticationServiceConfig {
 	@AttributeDefinition(name = "Certificate URL", description = "The URL to retrieve the public keys used to verify the JWT tokens issued by the OAuth2 server. This is the OAuth2 JWKs endpoint.", defaultValue = "http://localhost:7900/realms/openems/protocol/openid-connect/certs")
 	String certsUrl() default "http://localhost:7900/realms/openems/protocol/openid-connect/certs";
 
+	@AttributeDefinition(name = "Audience", description = "The audience that every access token must contain, or empty to accept tokens of any audience.")
+	String audience() default "";
+
 	@AttributeDefinition(name = "Rate Limiter Bucket size")
 	int rateLimitedBucketSize() default 10;
 
